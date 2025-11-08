@@ -1,0 +1,20 @@
+[project]
+name = "yabplot"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "ipywidgets>=8.1.8",
+    "nibabel>=5.3.2",
+    "pandas>=2.3.3",
+    "pyvista>=0.46.4",
+    "scikit-image>=0.25.2",
+    "trame>=3.12.0",
+    "trame-vtk>=2.10.0",
+    "trame-vuetify>=3.1.0",
+    "vtk>=9.5.2",
+]
+
+[tool.setuptools.package-data]
+"yabplot.resources.musus100" = ["*.txt", "*.nii.gz", "*.gii"]
