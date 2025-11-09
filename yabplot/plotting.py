@@ -7,8 +7,8 @@ import matplotlib.colors as mcolors
 
 from yabplot.utils import get_resource_path, load_gii2pv, prep_data, generate_distinct_colors
 
-def plot_roi(data=None, views=None, layout=None, figsize=(300, 300), cmap='coolwarm', 
-             vminmax=[None, None], nan_color='#cccccc', legend=False, lighting=True,
+def plot_roi(data=None, atlas='musus100dbn', views=None, layout=None, figsize=(300, 300), cmap='coolwarm', 
+             vminmax=[None, None], nan_color='#cccccc', nan_alpha=1, legend=False, lighting=True,
              bmesh_type='conte69_32k', bmesh_alpha=0.1, bmesh_color='lightgray', 
              bmesh_kwargs=dict(specular=0.0, ambient=0.6, diffuse=0.6),
              rmesh_kwargs=dict(specular=0.0, ambient=0.8, diffuse=0.5),
@@ -21,11 +21,19 @@ def plot_roi(data=None, views=None, layout=None, figsize=(300, 300), cmap='coolw
             bmesh[h] = load_gii2pv(get_resource_path(f'brainmesh/{bmesh_type}.{h}.gii'))
 
     # regional meshes
-    rmesh_dir = get_resource_path(f'musus100_dbn/surfs')
-    rmesh_files = sorted([f for f in os.listdir(rmesh_dir) 
-                        if f.endswith('_surface.surf.gii')])
-    rmesh_names = [f.replace('_surface.surf.gii', '') for f in rmesh_files]
-
+    try:
+        ext = '.vtk'
+        rmesh_dir = get_resource_path(os.path.join(atlas, 'pv'))
+        rmesh_files = sorted([f for f in os.listdir(rmesh_dir) 
+                            if f.endswith(ext)])
+        rmesh_names = [f.replace(ext, '') for f in rmesh_files]
+    except:
+        ext = '_surface.surf.gii'
+        rmesh_dir = get_resource_path(os.path.join(atlas, 'surfs'))
+        rmesh_files = sorted([f for f in os.listdir(rmesh_dir) 
+                            if f.endswith(ext)])
+        rmesh_names = [f.replace(ext, '') for f in rmesh_files]
+    
     # colors for data
     if data is not None:
         d_data = prep_data(data)
@@ -48,24 +56,33 @@ def plot_roi(data=None, views=None, layout=None, figsize=(300, 300), cmap='coolw
     mesh_data = {}
     plotted_regions = {}
     for rmesh_file in rmesh_files:
-        name = rmesh_file.replace('_surface.surf.gii', '')
+        name = rmesh_file.replace(ext, '')
 
         # load mesh
-        pv_mesh = load_gii2pv(os.path.join(rmesh_dir, rmesh_file), smooth=True)
-        
+        try:
+            pv_mesh = pv.read(os.path.join(rmesh_dir, rmesh_file))
+        except:
+            pv_mesh = load_gii2pv(os.path.join(rmesh_dir, rmesh_file), smooth=True)
+            _rmesh_dir = get_resource_path(os.path.join(atlas, 'pv'))
+            _rmesh_file = rmesh_file.replace(ext, '.vtk')
+            os.makedirs(_rmesh_dir, exist_ok=True)
+            pv_mesh.save(os.path.join(_rmesh_dir, _rmesh_file))
+
         # color based on data value
         if data is not None:
             if name in data and pd.notna(data[name]):
                 val = data[name]
                 rgba = colormap(norm(val))
                 color = rgba[:3] # only rgb
+                alpha = 1
             else:
                 color = nan_color  # Gray for NaN
+                alpha = nan_alpha
         # distinct color for atlas
         else:
             color = d_atlas_colors[name]
         
-        mesh_data[name] = (pv_mesh, color)
+        mesh_data[name] = (pv_mesh, color, alpha)
         plotted_regions[name] = color
 
     # views
@@ -118,7 +135,7 @@ def plot_roi(data=None, views=None, layout=None, figsize=(300, 300), cmap='coolw
                     plotter.add_mesh(**mesh_args)
         
         # regional meshes
-        for name, (pv_mesh, color) in mesh_data.items():
+        for name, (pv_mesh, color, alpha) in mesh_data.items():
             l_prefixes = ('L-', 'L_', 'LH-', 'LH_', 'lh-', 'lh_', 'Left-', 'Left_')
             r_prefixes = ('R-', 'R_', 'RH-', 'RH_', 'rh-', 'rh_', 'Right-', 'Right_')
             if name.startswith(l_prefixes):
@@ -140,7 +157,8 @@ def plot_roi(data=None, views=None, layout=None, figsize=(300, 300), cmap='coolw
                 pv_mesh.point_data['data'] = np.ones(pv_mesh.n_points) * rval
                 
                 plotter.add_mesh(pv_mesh, scalars='data', cmap=cmap, clim=vminmax, 
-                    nan_color=nan_color, show_scalar_bar=False, lighting=lighting, **rmesh_kwargs)
+                    nan_color=nan_color, opacity=alpha, show_scalar_bar=False, 
+                    lighting=lighting, **rmesh_kwargs)
             else:
                 plotter.add_mesh(pv_mesh, color=color, lighting=lighting, **rmesh_kwargs)
             

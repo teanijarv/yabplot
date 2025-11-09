@@ -1,5 +1,6 @@
 from importlib.resources import files
 import numpy as np
+import pandas as pd
 import nibabel as nib
 import pyvista as pv
 
