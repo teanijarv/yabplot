@@ -17,4 +17,10 @@ dependencies = [
 ]
 
 [tool.setuptools.package-data]
-"yabplot.resources.musus100" = ["*.txt", "*.nii.gz", "*.gii"]
+"yabplot.resources.atlas.aseg.pv" = ["*.vtk"]
+"yabplot.resources.atlas.brainnetome.pv" = ["*.vtk"]
+"yabplot.resources.atlas.jhu.pv" = ["*.vtk"]
+"yabplot.resources.atlas.musus100.pv" = ["*.vtk"]
+"yabplot.resources.atlas.musus100_dbn.pv" = ["*.vtk"]
+"yabplot.resources.atlas.musus100_tha.pv" = ["*.vtk"]
+"yabplot.resources.atlas.xtract.pv" = ["*.vtk"]

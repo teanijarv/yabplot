@@ -5,31 +5,35 @@ import pyvista as pv
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
-from yabplot.utils import get_resource_path, load_gii2pv, prep_data, generate_distinct_colors
+from yabplot.utils import get_resource_path, get_atlas_names, load_gii2pv, prep_data, generate_distinct_colors
 
-def plot_roi(data=None, atlas='musus100dbn', views=None, layout=None, figsize=(300, 300), cmap='coolwarm', 
+def plot_roi(data=None, atlas='aseg', views=None, layout=None, figsize=(300, 300), cmap='coolwarm', 
              vminmax=[None, None], nan_color='#cccccc', nan_alpha=1, legend=False, lighting=True,
-             bmesh_type='conte69_32k', bmesh_alpha=0.1, bmesh_color='lightgray', 
+             bmesh_type='conte69_32k', bmesh_alpha=0.1, bmesh_color='lightgray', zoom=1.0,
              bmesh_kwargs=dict(specular=0.0, ambient=0.6, diffuse=0.6),
              rmesh_kwargs=dict(specular=0.0, ambient=0.8, diffuse=0.5),
              display_type='static', export_path=None, rseed=42):
+    
+    av_atlases = get_atlas_names()
+    if atlas not in av_atlases:
+        raise RuntimeError(f"Atlas '{atlas}' not available, choose one of the following: {av_atlases}")
 
     # brain mesh
     bmesh = {}
     if bmesh_type is not None:
         for h in ['lh', 'rh']:
-            bmesh[h] = load_gii2pv(get_resource_path(f'brainmesh/{bmesh_type}.{h}.gii'))
+            bmesh[h] = load_gii2pv(get_resource_path(os.path.join('brainmesh', f'{bmesh_type}.{h}.gii')))
 
     # regional meshes
     try:
         ext = '.vtk'
-        rmesh_dir = get_resource_path(os.path.join(atlas, 'pv'))
+        rmesh_dir = get_resource_path(os.path.join('atlas', atlas, 'pv'))
         rmesh_files = sorted([f for f in os.listdir(rmesh_dir) 
                             if f.endswith(ext)])
         rmesh_names = [f.replace(ext, '') for f in rmesh_files]
     except:
         ext = '_surface.surf.gii'
-        rmesh_dir = get_resource_path(os.path.join(atlas, 'surfs'))
+        rmesh_dir = get_resource_path(os.path.join('atlas', atlas, 'gii'))
         rmesh_files = sorted([f for f in os.listdir(rmesh_dir) 
                             if f.endswith(ext)])
         rmesh_names = [f.replace(ext, '') for f in rmesh_files]
@@ -62,8 +66,9 @@ def plot_roi(data=None, atlas='musus100dbn', views=None, layout=None, figsize=(3
         try:
             pv_mesh = pv.read(os.path.join(rmesh_dir, rmesh_file))
         except:
-            pv_mesh = load_gii2pv(os.path.join(rmesh_dir, rmesh_file), smooth=True)
-            _rmesh_dir = get_resource_path(os.path.join(atlas, 'pv'))
+            pv_mesh = load_gii2pv(os.path.join(rmesh_dir, rmesh_file), 
+                                  smooth_i=15, smooth_f=0.6)
+            _rmesh_dir = get_resource_path(os.path.join('atlas', atlas, 'pv'))
             _rmesh_file = rmesh_file.replace(ext, '.vtk')
             os.makedirs(_rmesh_dir, exist_ok=True)
             pv_mesh.save(os.path.join(_rmesh_dir, _rmesh_file))
@@ -80,6 +85,7 @@ def plot_roi(data=None, atlas='musus100dbn', views=None, layout=None, figsize=(3
                 alpha = nan_alpha
         # distinct color for atlas
         else:
+            alpha = 1
             color = d_atlas_colors[name]
         
         mesh_data[name] = (pv_mesh, color, alpha)
@@ -136,11 +142,15 @@ def plot_roi(data=None, atlas='musus100dbn', views=None, layout=None, figsize=(3
         
         # regional meshes
         for name, (pv_mesh, color, alpha) in mesh_data.items():
-            l_prefixes = ('L-', 'L_', 'LH-', 'LH_', 'lh-', 'lh_', 'Left-', 'Left_')
-            r_prefixes = ('R-', 'R_', 'RH-', 'RH_', 'rh-', 'rh_', 'Right-', 'Right_')
-            if name.startswith(l_prefixes):
+            lh_k = ('L', 'LH', 'lh', 'Left', 'LEFT', 'left')
+            rh_k = ('R', 'RH', 'rh', 'Right', 'RIGHT', 'right')
+            if name.startswith(tuple(s+'_' for s in lh_k) + tuple(s+'-' for s in lh_k)):
                 hemi = 'L'
-            elif name.startswith(r_prefixes):
+            elif name.startswith(tuple(s+'_' for s in rh_k) + tuple(s+'-' for s in rh_k)):
+                hemi = 'R'
+            elif name.endswith(tuple('_'+s for s in lh_k) + tuple('-'+s for s in lh_k)):
+                hemi = 'L'
+            elif name.endswith(tuple('_'+s for s in rh_k) + tuple('-'+s for s in rh_k)):
                 hemi = 'R'
             else:
                 hemi = 'LR'
@@ -192,8 +202,10 @@ def plot_roi(data=None, atlas='musus100dbn', views=None, layout=None, figsize=(3
         
         if bmesh_type is not None:
             plotter.reset_camera()
+            plotter.camera.zoom(zoom) 
         else:
             plotter.camera.parallel_scale = 40
+            plotter.camera.zoom(zoom) 
 
     plotter.hide_axes()
 
@@ -207,7 +219,7 @@ def plot_roi(data=None, atlas='musus100dbn', views=None, layout=None, figsize=(3
             for region, color in plotted_regions.items():
                 legend_entries.append([region, color])
             plotter.add_legend(legend_entries, size=(0.8, 0.8))
-
+    
     # export and render
     if export_path is not None:
         plotter.screenshot(export_path, transparent_background=True)

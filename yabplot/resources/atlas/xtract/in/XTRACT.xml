@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<atlas version="1.0">
+  <header>
+    <name>XTRACT HCP Probabilistic Tract Atlases</name>
+    <shortname>XTRACT HCP</shortname>
+    <type>Probabilistic</type>
+    <images>
+      <imagefile>/XTRACT/xtract-tract-atlases-prob-1mm</imagefile>
+      <summaryimagefile>/XTRACT/xtract-tract-atlases-maxprob5-1mm</summaryimagefile>
+    </images>
+  </header>
+  <data>
+<label index="0" x="90" y="128" z="65">Anterior Commissure</label>
+<label index="1" x="129" y="104" z="99">Arcuate Fasciculus L</label>
+<label index="2" x="54" y="104" z="99">Arcuate Fasciculus R</label>
+<label index="3" x="138" y="104" z="74">Acoustic Radiation L</label>
+<label index="4" x="74" y="104" z="74">Acoustic Radiation R</label>
+<label index="5" x="110" y="144" z="74">Anterior Thalamic Radiation L</label>
+<label index="6" x="71" y="144" z="74">Anterior Thalamic Radiation R</label>
+<label index="7" x="97" y="113" z="105">Cingulum subsection: Dorsal L</label>
+<label index="8" x="83" y="113" z="105">Cingulum subsection: Dorsal R</label>
+<label index="9" x="97" y="162" z="79">Cingulum subsection: Peri-genual L</label>
+<label index="10" x="83" y="162" z="79">Cingulum subsection: Peri-genual R</label>
+<label index="11" x="114" y="92" z="60">Cingulum subsection: Temporal L</label>
+<label index="12" x="69" y="92" z="60">Cingulum subsection: Temporal R</label>
+<label index="13" x="116" y="104" z="106">Corticospinal Tract L</label>
+<label index="14" x="63" y="104" z="106">Corticospinal Tract R</label>
+<label index="15" x="112" y="138" z="106">Frontal Aslant Tract L</label>
+<label index="16" x="67" y="138" z="106">Frontal Aslant Tract R</label>
+<label index="17" x="90" y="88" z="80">Forceps Major</label>
+<label index="18" x="90" y="152" z="80">Forceps Minor</label>
+<label index="19" x="96" y="107" z="88">Fornix L</label>
+<label index="20" x="84" y="107" z="88">Fornix R</label>
+<label index="21" x="124" y="112" z="65">Inferior Fronto-Occipital Fasciculus L</label>
+<label index="22" x="56" y="112" z="65">Inferior Fronto-Occipital Fasciculus R</label>
+<label index="23" x="140" y="87" z="63">Inferior Longitudinal Fasciculus L</label>
+<label index="24" x="42" y="87" z="63">Inferior Longitudinal Fasciculus R</label>
+<label index="25" x="90" y="107" z="34">Middle Cerebellar Peduncle</label>
+<label index="26" x="127" y="90" z="78">Middle Longitudinal Fasciculus L</label>
+<label index="27" x="53" y="90" z="78">Middle Longitudinal Fasciculus R</label>
+<label index="28" x="125" y="76" z="78">Optic Radiation L</label>
+<label index="29" x="54" y="76" z="78">Optic Radiation R</label>
+<label index="30" x="108" y="109" z="122">Superior Longitudinal Fasciculus 1 L</label>
+<label index="31" x="73" y="109" z="122">Superior Longitudinal Fasciculus 1 R</label>
+<label index="32" x="128" y="98" z="105">Superior Longitudinal Fasciculus 2 L</label>
+<label index="33" x="53" y="98" z="105">Superior Longitudinal Fasciculus 2 R</label>
+<label index="34" x="132" y="95" z="103">Superior Longitudinal Fasciculus 3 L</label>
+<label index="35" x="48" y="95" z="103">Superior Longitudinal Fasciculus 3 R</label>
+<label index="36" x="116" y="120" z="104">Superior Thalamic Radiation L</label>
+<label index="37" x="64" y="120" z="104">Superior Thalamic Radiation R</label>
+<label index="38" x="121" y="137" z="66">Uncinate Fasciculus L</label>
+<label index="39" x="59" y="137" z="66">Uncinate Fasciculus R</label>
+<label index="40" x="121" y="45" z="76">Vertical Occipital Fasciculus L</label>
+<label index="41" x="59" y="45" z="76">Vertical Occipital Fasciculus R</label>
+  </data>
+</atlas>

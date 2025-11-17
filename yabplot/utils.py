@@ -1,3 +1,4 @@
+import os
 from importlib.resources import files
 import numpy as np
 import pandas as pd
@@ -7,6 +8,11 @@ import pyvista as pv
 def get_resource_path(relpath=''):
     resource_file = files('yabplot.resources') / relpath
     return str(resource_file)
+
+def get_atlas_names():
+    dir = get_resource_path('atlas')
+    names = [d for d in os.listdir(dir) if os.path.isdir(os.path.join(dir, d))]
+    return names
 
 def smooth_mesh_vertices(verts, faces, iterations=2, factor=0.5):
     """Laplacian smoothing."""
@@ -29,14 +35,14 @@ def smooth_mesh_vertices(verts, faces, iterations=2, factor=0.5):
     
     return verts_smooth
 
-def load_gii2pv(gii_path, smooth=False):
+def load_gii2pv(gii_path, smooth_i=15, smooth_f=0.6):
     """Load GIfTI and convert to pyvista format (+ smooth)."""
     mesh = nib.load(gii_path)
     verts = mesh.darrays[0].data
     faces = mesh.darrays[1].data
 
-    if smooth:
-        verts = smooth_mesh_vertices(verts, faces, iterations=15, factor=0.6)
+    if smooth_i > 0:
+        verts = smooth_mesh_vertices(verts, faces, iterations=smooth_i, factor=smooth_f)
 
     faces_pv = np.column_stack([np.full(len(faces), 3), faces]).flatten()
     pv_mesh = pv.PolyData(verts, faces_pv)
