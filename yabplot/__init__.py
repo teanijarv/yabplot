@@ -1,2 +1,2 @@
-from .utils import get_resource_path, get_atlas_names, smooth_mesh_vertices, load_gii2pv, prep_data, generate_distinct_colors
-from .plotting import plot_roi
+from .plotting import plot_cortical, plot_subcortical, plot_tracts, clear_tract_cache
+from .utils import get_atlas_names
