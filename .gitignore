@@ -7,6 +7,8 @@ yabplot/resources/atlas/tracts/hcp1065_small
 yabplot/resources/atlas/tracts/hcp1065_tiny
 yabplot/resources/atlas/tracts/xtract_large
 yabplot/resources/atlas/tracts/xtract_large_part
+newdata/
+dev/
 
 .DS_Store
 __pycache__/

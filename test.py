@@ -2,44 +2,51 @@
 
 from yabplot import plot_subcortical
 
-# import numpy as np
-# data = {'L-SNr(substantia_nigra_pars_reticulata)': np.float64(1),
-#  'L-SNc(substantia_nigra_pars_compacta)': np.float64(1)}
 
-data = {
-    'Left_Hippocampus': 0.7,
-    'Left_Amygdala': -0.5,
-    'Genu_of_corpus_callosum': 0.7,
-    'Body_of_corpus_callosum': 0,
-    # 'Posterior_corona_radiata_R': 0.2,
-}
 
-p = plot_subcortical(data=None, layout=(1, 3), atlas='jhu', vminmax=[-1, 1], figsize=(1000, 500), zoom=1.3,
-             views=['left_lateral', 'left_medial', 'superior'], nan_alpha=0, legend=True)
+print('subcortical brainnetome-sc atlas, with default lighting and all views:')
+p = plot_subcortical(atlas='brainnetome_sc', style='default')
+
+print('subcortical aseg atlas, with sculpted lighting:')
+p = plot_subcortical(atlas='aseg', style='sculpted', figsize=(1000, 300),
+                     views=['left_lateral', 'left_medial', 'superior', 'anterior'])
+
+print('subcortical aseg atlas with data, with matte lighting:')
+data = {'Left_Hippocampus': 0.6, 'Left_Amygdala': -0.2,
+        'Left_Putamen': 0.9, 'Left_Thalamus': -0.9}
+p = plot_subcortical(data=data, atlas='aseg', style='matte', figsize=(1000, 300),
+                     views=['left_lateral', 'left_medial', 'superior', 'anterior'])
+
+print('subcortical aseg atlas with data with modified brainmesh and in 2D:')
+p = plot_subcortical(data=data, atlas='aseg', style='flat', figsize=(1000, 300),
+                     views=['left_lateral', 'left_medial', 'superior', 'anterior'],
+                     bmesh_color='gray', bmesh_alpha=0.05)
 
 # %%
 
 from yabplot import plot_tracts
 
 data = {
-    'Forceps_Major': 0.7,
-    'Forceps_Minor': 0.9,
-    'Corticospinal_Tract_L': 0.9,
-    'Inferior_Fronto-Occipital_Fasciculus_L': -0.5,
-    'Inferior_Longitudinal_Fasciculus_L': -0.9,
-    'Uncinate_Fasciculus_L': 0.2,
-    'Anterior_Thalamic_Radiation_L': 0.5,
-    'Superior_Longitudinal_Fasciculus_2_L': 0.2,
-    'Superior_Longitudinal_Fasciculus_3_L': 0.2,
+    'FMaj': 0.7,
+    'FMin': 0.9,
+    'CRT_L': 0.9,
+    'IFOF_L': -0.5,
+    'ILF_L': -0.9,
+    'UF_L': 0.2,
+    'ATR_L': 0.5,
+    'SLF2_L': 0.2,
+    'SLF3_L': 0.2,
 }
+s = 'default'
 
-p = plot_tracts(data=None, layout=(1, 2), atlas='xtract_tiny', vminmax=[-1, 1], figsize=(1000, 500), zoom=1.3,
-             views=['left_lateral', 'superior'], nan_alpha=1, bmesh_type='fsaverage')
+p = plot_tracts(atlas='xtract_tiny', layout=(2, 2), zoom=1.4, style=s,
+                views=['left_lateral', 'left_medial', 'superior', 'anterior'],
+                orientation_coloring=True)
+p = plot_tracts(atlas='xtract_tiny', layout=(2, 2), zoom=1.4, style=s,
+                views=['left_lateral', 'left_medial', 'superior', 'anterior'])
+p = plot_tracts(atlas='xtract_tiny', data=data, layout=(2, 2), zoom=1.4, style=s,
+                views=['left_lateral', 'left_medial', 'superior', 'anterior'])
 
-# %%
-
-p = plot_subcortical(data=None, layout=(1, 3), atlas='aseg', vminmax=[-1, 1], figsize=(650, 300), zoom=1.3,
-             views=['left_lateral', 'left_medial', 'superior'], nan_alpha=1)
 # %%
 import numpy as np
 import pandas as pd
@@ -50,6 +57,21 @@ d_gr = pd.read_csv('/Users/to8050an/Documents/data/margulies_gradients.csv')
 p = plot_cortical(
     data=np.array(d_gr['gradient1']), 
     atlas='schaefer_1000'
+)
+
+# %%
+import numpy as np
+import pandas as pd
+from yabplot import plot_cortical
+
+s = 'default'
+
+plot_cortical(atlas='schaefer_1000', style=s)
+d_gr = pd.read_csv('/Users/to8050an/Documents/data/margulies_gradients.csv')
+p = plot_cortical(
+    data=np.array(d_gr['gradient1']), 
+    atlas='schaefer_1000',
+    style=s
 )
 
 # %%

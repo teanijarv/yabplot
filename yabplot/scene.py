@@ -3,6 +3,63 @@ import numpy as np
 import pyvista as pv
 from yabplot.utils import get_resource_path, load_gii2pv
 
+def get_shading_preset(style_name):
+    """
+    Returns a dictionary of lighting parameters for pyvista.add_mesh.
+    
+    Styles:
+    - 'default': Balanced, no shine.
+    - 'matte':   (Soft) High ambient, low contrast. Good for reading atlas colors.
+    - 'sculpted':(Hard) Stronger shadows, higher contrast. Good for showing anatomy.
+    - 'glossy':  (Shiny) Wet/Plastic look with specular highlights. 
+    """
+    presets = {
+        'default': {
+            'lighting': True,
+            'specular': 0.0, 
+            'ambient': 0.65, 
+            'diffuse': 0.4, 
+            'specular_power': 15
+        },
+        # very bright shadows
+        'matte': {
+            'lighting': True,
+            'specular': 0.0, 
+            'ambient': 0.75,
+            'diffuse': 0.2, 
+            'specular_power': 0
+        },
+        # slight shime, dark shadows, strong directional light
+        'sculpted': {
+            'lighting': True,
+            'specular': 0.05,
+            'ambient': 0.4,
+            'diffuse': 0.6,
+            'specular_power': 10
+        },
+        # strong shine, sharp highlights
+        'glossy': {
+            'lighting': True,
+            'specular': 0.3,
+            'ambient': 0.4, 
+            'diffuse': 0.6, 
+            'specular_power': 30
+        },
+        # flat 2D
+        'flat': {
+            'lighting': False,
+            'ambient': 1.0, 
+            'diffuse': 0.0, 
+            'specular': 0.0
+        }
+    }
+    
+    if style_name not in presets:
+        print(f"Warning: Style '{style_name}' not found. Using 'default'. Options: {list(presets.keys())}")
+        return presets['default']
+        
+    return presets[style_name]
+
 def get_view_configs(view_names):
     all_views = {
         'left_lateral':  {'pos': (-1, 0, 0), 'up': (0, 0, 1), 'side': 'L'},
@@ -51,14 +108,17 @@ def load_context_mesh(bmesh_type):
         except Exception as e:
             print(f"Warning: Could not load brainmesh. {e}")
     return bmesh
-
-def add_context_to_view(plotter, bmesh, view_side, alpha, color, lighting, **kwargs):
+        
+def add_context_to_view(plotter, bmesh, view_side, alpha, color, **kwargs):
+    """
+    Adds context mesh. Lighting parameters are passed via **kwargs.
+    """
     if not bmesh: return
     for h, mesh in bmesh.items():
         if (view_side == 'L' and h == 'rh') or (view_side == 'R' and h == 'lh'): continue
         plotter.add_mesh(mesh, color=color, opacity=alpha, 
                          smooth_shading=True, show_edges=False, 
-                         lighting=lighting, **kwargs)
+                         **kwargs)
 
 def set_camera(plotter, view_cfg, zoom=1.0, distance=200):
     plotter.camera.position = tuple(p * distance for p in view_cfg['pos'])
@@ -75,3 +135,4 @@ def finalize_plot(plotter, export_path, display_type):
     elif display_type == 'interactive': plotter.show(jupyter_backend='trame')
     elif display_type == 'none': plotter.close()
     return plotter
+
