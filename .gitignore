@@ -1,6 +1,6 @@
 archive/
 yabplot/resources/
-newdata/
+examples/exampledata
 dev/
 
 .DS_Store
