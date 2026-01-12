@@ -1,7 +1,6 @@
 import os
 import numpy as np
 import pyvista as pv
-from yabplot.utils import get_resource_path, load_gii2pv
 
 def get_shading_preset(style_name):
     """

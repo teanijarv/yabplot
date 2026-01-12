@@ -46,7 +46,7 @@ def make_cortical_mesh(verts, faces, scalars):
     mesh['Data'] = scalars
     return mesh
 
-def prep_data(data):
+def prep_data(data, regions, atlas, category):
     """Standardize input data to dictionary."""
     if isinstance(data, pd.DataFrame):
         if data.shape[1] >= 2:
@@ -55,7 +55,18 @@ def prep_data(data):
         return data.to_dict()
     elif isinstance(data, dict):
         return data
-    return data # Return as-is (None or invalid)
+    elif isinstance(data, (list, np.ndarray, tuple)):
+        if len(data) != len(regions):
+            raise ValueError(
+                f"Data length mismatch! Atlas '{atlas}' has {len(regions)} regions, "
+                f"but input data has {len(data)}. "
+                f"For partial data, use a dictionary, pd.Series, or pd.DataFrame. "
+                f"Use `yabplot.get_atlas_regions('{atlas}', '{category}')` to see expected order."
+            )
+        # map strictly by order
+        return dict(zip(regions, data))
+
+    return data
 
 def generate_distinct_colors(n_colors, seed=42):
     """Generate visually distinct colors using Golden Ratio."""
@@ -115,11 +126,17 @@ def map_values_to_surface(data, target_labels, lut_ids, dense_lut_names):
     if isinstance(data, dict):
         for i, name in enumerate(valid_names_list):
             if name in data:
-                source_values[i] = data[name]
-                
-    elif isinstance(data, (np.ndarray, list)):
-        limit = min(len(data), n_regions)
-        source_values[:limit] = np.array(data)[:limit]
+                source_values[i] = data[name]            
+    elif isinstance(data, (np.ndarray, list, tuple)):
+        # map by order
+        if len(data) != n_regions:
+            raise ValueError(
+                f"Data length mismatch! The atlas LUT defines {n_regions} regions, "
+                f"but input data has {len(data)}.\n"
+                f"Expected order starts with: {valid_names_list[0:3]}...\n"
+                f"Solution: Use a dictionary for partial data, or check `yabplot.get_atlas_regions`."
+            )
+        source_values = np.array(data)
     else:
         raise ValueError("Data must be dict, list, or numpy array.")
 

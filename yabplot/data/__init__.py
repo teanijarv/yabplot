@@ -8,6 +8,8 @@ import shutil
 import pooch
 from importlib.resources import files
 
+from ..utils import parse_lut
+
 __all__ = ['get_available_resources']
 
 # define cache location
@@ -70,6 +72,74 @@ def get_available_resources(category=None):
         
     return all_resources
 
+def get_atlas_regions(atlas, category, custom_atlas_path=None):
+    """
+    Returns the list of region names for a given atlas in the specific order 
+    used for mapping data arrays.
+
+    Parameters
+    ----------
+    atlas : str
+        Name of the atlas (e.g., 'aparc', 'aseg').
+    category : str
+        'cortical', 'subcortical', or 'tracts'.
+    custom_atlas_path : str, optional
+        Path to custom atlas directory.
+
+    Returns
+    -------
+    list
+        List of strings containing region names. 
+        - If input data is a LIST, it must match this order.
+        - If input data is a DICT, keys must match these names.
+    """
+    
+    # resolve the directory path
+    try:
+        atlas_dir = _resolve_resource_path(atlas, category, custom_path=custom_atlas_path)
+    except Exception as e:
+        print(f"Error resolving atlas: {e}")
+        return []
+
+    # --- case 1: cortical ---
+    if category == 'cortical':
+        check_name = None if custom_atlas_path else atlas
+        try:
+            _, lut_path = _find_cortical_files(atlas_dir, strict_name=check_name)
+            
+            # use parse_lut to get the IDs and the full names list
+            ids, _, names_list, _ = parse_lut(lut_path)
+            
+            # return only the names corresponding to the explicit IDs in the file.
+            return [names_list[i] for i in ids]
+            
+        except Exception as e:
+            print(f"Error parsing cortical atlas: {e}")
+            return []
+
+    # --- case 2: subcortical ---
+    elif category == 'subcortical':
+        try:
+            file_map = _find_subcortical_files(atlas_dir)
+            # the plotting function sorts keys alphabetically
+            return sorted(list(file_map.keys()))
+        except Exception as e:
+            print(f"Error listing subcortical regions: {e}")
+            return []
+
+    # --- case 3: tracts ---
+    elif category == 'tracts':
+        try:
+            file_map = _find_tract_files(atlas_dir)
+            # the plotting function sorts keys alphabetically
+            return sorted(list(file_map.keys()))
+        except Exception as e:
+            print(f"Error listing tracts: {e}")
+            return []
+
+    else:
+        raise ValueError("Category must be 'cortical', 'subcortical', or 'tracts'")
+
 
 def _fetch_and_unpack(resource_key):
     """
@@ -81,7 +151,6 @@ def _fetch_and_unpack(resource_key):
 
     # optimization: check if unpacked folder already exists
     # if yes, skip pooch check entirely to avoid re-downloading
-    # (since we delete the zip source, pooch would otherwise think it's missing)
     if os.path.isdir(extract_path) and os.listdir(extract_path):
         return extract_path
 
@@ -222,10 +291,10 @@ def _find_subcortical_files(atlas_dir):
     def _scan_for_ext(directory, extension):
         """Recursively finds files with extension, ignoring junk folders."""
         candidates = []
-        # 1. Check root
+        # check root
         candidates.extend(glob.glob(os.path.join(directory, f"*{extension}")))
         
-        # 2. Check valid subdirectories
+        # check valid subdirectories
         try:
             subdirs = [
                 os.path.join(directory, d) for d in os.listdir(directory)
@@ -242,8 +311,7 @@ def _find_subcortical_files(atlas_dir):
     # try finding VTK files
     vtk_files = _scan_for_ext(atlas_dir, ".vtk")
     if vtk_files:
-        # Map basename -> full path
-        # e.g. "Left_Thalamus.vtk" -> "Left_Thalamus"
+        # map basename -> full path
         return {
             os.path.splitext(os.path.basename(f))[0]: f 
             for f in vtk_files
@@ -273,10 +341,10 @@ def _find_tract_files(atlas_dir):
     def _scan_for_ext(directory, extension):
         """Recursively finds files with extension, ignoring junk folders."""
         candidates = []
-        # 1. check root
+        # check root
         candidates.extend(glob.glob(os.path.join(directory, f"*{extension}")))
         
-        # 2. check valid subdirectories
+        # check valid subdirectories
         try:
             subdirs = [
                 os.path.join(directory, d) for d in os.listdir(directory)
@@ -297,7 +365,6 @@ def _find_tract_files(atlas_dir):
         raise FileNotFoundError(f"No .trk files found in {atlas_dir}")
 
     # map basename -> full path
-    # e.g. "CST_L.trk" -> "CST_L": "/path/to/CST_L.trk"
     return {
         os.path.splitext(os.path.basename(f))[0]: f 
         for f in trk_files
