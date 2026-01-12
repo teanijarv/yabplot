@@ -8,6 +8,7 @@ dependencies = [
     "ipywidgets>=8.1.8",
     "nibabel>=5.3.2",
     "pandas>=2.3.3",
+    "pooch>=1.8.2",
     "pyvista>=0.46.4",
     "scikit-image>=0.25.2",
     "trame>=3.12.0",

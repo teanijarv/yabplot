@@ -95,19 +95,6 @@ def setup_plotter(sel_views, layout, figsize, display_type, needs_bottom_row=Tru
                          off_screen=(display_type=='none'), window_size=figsize, border=False)
     plotter.set_background('white')
     return plotter, ncols, nrows
-
-def load_context_mesh(bmesh_type):
-    bmesh = {}
-    if bmesh_type:
-        try:
-            bmesh_path = get_resource_path(os.path.join('brainmesh'))
-            for h in ['lh', 'rh']:
-                fpath = os.path.join(bmesh_path, f'{bmesh_type}.{h}.gii')
-                if os.path.exists(fpath):
-                    bmesh[h] = load_gii2pv(fpath)
-        except Exception as e:
-            print(f"Warning: Could not load brainmesh. {e}")
-    return bmesh
         
 def add_context_to_view(plotter, bmesh, view_side, alpha, color, **kwargs):
     """

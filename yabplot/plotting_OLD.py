@@ -6,46 +6,39 @@ import nibabel as nib
 import pyvista as pv
 from matplotlib.colors import ListedColormap
 
-from .data import _resolve_resource_path, _find_cortical_files, _find_subcortical_files, _find_tract_files
-
 from .utils import (
-    load_gii, load_gii2pv, prep_data, 
+    get_resource_path, get_atlas_names, load_gii, load_gii2pv, prep_data, 
     generate_distinct_colors, parse_lut, map_values_to_surface, 
     lines_from_streamlines, make_cortical_mesh
 )
 
 from .scene import (
-    get_view_configs, setup_plotter, add_context_to_view, 
+    get_view_configs, setup_plotter, load_context_mesh, add_context_to_view, 
     set_camera, finalize_plot, get_shading_preset
 )
 
 
 # --- plot for cortical surface ---
 
-def plot_cortical(data=None, atlas=None, custom_atlas_path=None,
-                  views=None, layout=None, 
+def plot_cortical(data=None, atlas='aparc', views=None, layout=None, 
                   figsize=(1000, 600), cmap='RdYlBu_r', vminmax=[None, None], 
                   nan_color=(1.0, 1.0, 1.0), style='default', zoom=1.2, 
                   display_type='static', export_path=None):
 
-    # defaults
-    if atlas is None and custom_atlas_path is None:
-        atlas = 'aparc'
+    av_atlases = get_atlas_names(type='verts')
+    if atlas not in av_atlases:
+        raise RuntimeError(f"Atlas '{atlas}' not available: {av_atlases}")
 
-    # load brain mesh
-    bmesh_path = _resolve_resource_path('conte69', 'bmesh')
-    lh_v, lh_f = load_gii(os.path.join(bmesh_path, 'conte69.lh.gii'))
-    rh_v, rh_f = load_gii(os.path.join(bmesh_path, 'conte69.rh.gii'))
+    # load geometry
+    bmesh_path = get_resource_path(os.path.join('brainmesh'))
+    lh_v, lh_f = load_gii(os.path.join(bmesh_path, f'conte69_32k.lh.gii'))
+    rh_v, rh_f = load_gii(os.path.join(bmesh_path, f'conte69_32k.rh.gii'))
 
-    # resolve atlas path (either download or custom directory)
-    atlas_dir = _resolve_resource_path(atlas, 'cortical', custom_path=custom_atlas_path)
-    
-    # locate files
-    check_name = None if custom_atlas_path else atlas
-    csv_path, lut_path = _find_cortical_files(atlas_dir, strict_name=check_name)
-
-    # load mapping data
+    # load mapping
+    atlas_path = get_resource_path(os.path.join('atlas', 'verts', atlas))
+    csv_path = os.path.join(atlas_path, f'{atlas}_conte69.csv')
     tar_labels = np.loadtxt(csv_path, dtype=int)
+    lut_path = os.path.join(atlas_path, f'{atlas}_LUT.txt')
     lut_ids, lut_colors, lut_names, max_id = parse_lut(lut_path)
 
     # map data
@@ -117,45 +110,52 @@ def plot_cortical(data=None, atlas=None, custom_atlas_path=None,
 
 # --- plot for subcortical structures ---
 
-def plot_subcortical(data=None, atlas=None, custom_atlas_path=None, 
-                     views=None, layout=None, 
+def plot_subcortical(data=None, atlas='aseg', views=None, layout=None, 
                      figsize=(1000, 600), cmap='coolwarm', vminmax=[None, None], 
                      nan_color='#cccccc', nan_alpha=1.0, legend=False, 
-                     style='default', bmesh_type='conte69', bmesh_alpha=0.1, 
+                     style='default', bmesh_type='conte69_32k', bmesh_alpha=0.1, 
                      bmesh_color='lightgray', zoom=1.2, display_type='static', 
-                     export_path=None,
-                     custom_atlas_proc=dict(smooth_i=15, smooth_f=0.6)):
+                     export_path=None):
     
-    # defaults
-    if atlas is None and custom_atlas_path is None:
-        atlas = 'aseg'
+    # check availability
+    av_atlases = get_atlas_names(type='surfs')
+    if atlas not in av_atlases:
+        raise RuntimeError(f"Atlas '{atlas}' not available: {av_atlases}")
 
     # load context brain mesh (if requested)
-    bmesh = {}
-    if bmesh_type:
-        bmesh_path = _resolve_resource_path(bmesh_type, 'bmesh')
-        for h in ['lh', 'rh']:
-            fpath = os.path.join(bmesh_path, f'{bmesh_type}.{h}.gii')
-            if os.path.exists(fpath):
-                bmesh[h] = load_gii2pv(fpath)
-    
+    bmesh = load_context_mesh(bmesh_type) if bmesh_type else {}
+
     # load regional atlas meshes
+    def _load_subcortical_meshes(atlas):
+        """locates and loads regional meshes (vtk preferred, gii fallback)."""
+        # 1. try loading cached .vtk files
+        pv_dir = get_resource_path(os.path.join('atlas', 'surfs', atlas, 'pv'))
+        if os.path.exists(pv_dir):
+            files = sorted([f for f in os.listdir(pv_dir) if f.endswith('.vtk')])
+            if files:
+                meshes = {}
+                for f in files:
+                    name = f.replace('.vtk', '')
+                    meshes[name] = pv.read(os.path.join(pv_dir, f))
+                return meshes
 
-    # resolve atlas path (either download or custom directory)
-    atlas_dir = _resolve_resource_path(atlas, 'subcortical', custom_path=custom_atlas_path)
+        # 2. fallback to .gii and cache
+        gii_dir = get_resource_path(os.path.join('atlas', 'surfs', atlas, 'gii'))
+        if os.path.exists(gii_dir):
+            files = sorted([f for f in os.listdir(gii_dir) if f.endswith('_surface.surf.gii')])
+            meshes = {}
+            os.makedirs(pv_dir, exist_ok=True)
+            for f in files:
+                name = f.replace('_surface.surf.gii', '')
+                mesh = load_gii2pv(os.path.join(gii_dir, f), smooth_i=15, smooth_f=0.6)
+                mesh.save(os.path.join(pv_dir, f"{name}.vtk"))
+                meshes[name] = mesh
+            return meshes
 
-    # locate mesh files, returns dict: {'Left_Thalamus': '/path/to/Left_Thalamus.vtk', ...}
-    file_map = _find_subcortical_files(atlas_dir)
-    rmesh_names = sorted(list(file_map.keys()))
+        raise RuntimeError(f"No meshes found for atlas '{atlas}'.")
 
-    # load meshes (and convert gii2pv if gii files)
-    meshes = {}
-    for name, fpath in file_map.items():
-        if fpath.endswith('.vtk'):
-            meshes[name] = pv.read(fpath)
-        elif fpath.endswith('.gii'):
-            mesh = load_gii2pv(fpath, **custom_atlas_proc)
-            meshes[name] = mesh
+    meshes = _load_subcortical_meshes(atlas)
+    rmesh_names = list(meshes.keys())
 
     # prepare colors
     if data is not None:
@@ -173,7 +173,7 @@ def plot_subcortical(data=None, atlas=None, custom_atlas_path=None,
     plotter, ncols, nrows = setup_plotter(sel_views, layout, figsize, display_type, 
                                            needs_bottom_row=needs_bottom)
     
-    # get shading parameters from style
+    # Get shading parameters from style
     shading_params = get_shading_preset(style)
     
     scalar_bar_mapper = None
@@ -256,8 +256,7 @@ def clear_tract_cache():
 
 
 def plot_tracts(data=None, 
-                atlas=None, 
-                custom_atlas_path=None,
+                atlas='hcp1065_small', 
                 views=None, 
                 layout=None, 
                 figsize=(1000, 800), 
@@ -268,7 +267,7 @@ def plot_tracts(data=None,
                 nan_alpha=1.0, 
                 legend=True, 
                 style='default',
-                bmesh_type='conte69', 
+                bmesh_type='conte69_32k', 
                 bmesh_alpha=0.2, 
                 bmesh_color='lightgray', 
                 zoom=1.2,
@@ -277,16 +276,14 @@ def plot_tracts(data=None,
                 display_type='static', 
                 export_path=None):
     
-    # defaults
-    if atlas is None and custom_atlas_path is None:
-        atlas = 'xtract_tiny'
+    # check availability
+    tract_dir = get_resource_path(os.path.join('atlas', 'tracts', atlas))
+    if not os.path.exists(tract_dir):
+         raise RuntimeError(f"Tract atlas directory not found: {tract_dir}")
 
-    # resolve atlas path (either download or custom directory)
-    atlas_dir = _resolve_resource_path(atlas, 'tracts', custom_path=custom_atlas_path)
-
-    # locate tract files, returns dict eg {'CST_L': '/path/to/CST_L.trk', ...}
-    file_map = _find_tract_files(atlas_dir)
-    tract_names = sorted(list(file_map.keys()))
+    # identify tracts
+    tract_files = sorted([f for f in os.listdir(tract_dir) if f.endswith('.trk')])
+    tract_names = [f.replace('.trk', '') for f in tract_files]
     
     # prepare colors
     # data mode
@@ -302,14 +299,8 @@ def plot_tracts(data=None,
         colors = generate_distinct_colors(len(tract_names), seed=42)
         d_atlas_colors = {name: color for name, color in zip(tract_names, colors)}
 
-    # load context brain mesh (if requested)
-    bmesh = {}
-    if bmesh_type:
-        bmesh_path = _resolve_resource_path(bmesh_type, 'bmesh')
-        for h in ['lh', 'rh']:
-            fpath = os.path.join(bmesh_path, f'{bmesh_type}.{h}.gii')
-            if os.path.exists(fpath):
-                bmesh[h] = load_gii2pv(fpath)
+    # load context brain mesh
+    bmesh = load_context_mesh(bmesh_type) if bmesh_type else {}
 
     # setup plotter
     sel_views = get_view_configs(views)
@@ -323,21 +314,22 @@ def plot_tracts(data=None,
     scalar_bar_mapper = None
     plotted_regions = {} # for legend
 
-    def _retrieve_tract_mesh(atlas_key, name, file_map):
+    def _retrieve_tract_mesh(atlas, name, tract_dir):
         """
-        Retrieves a mesh from cache or loads from disk using file_map.
+        retrieves a mesh from cache, disk cache, or raw source.
+        returns the base mesh (to be copied).
         """
-        # check RAM cache
-        if name in _TRACT_CACHE.get(atlas_key, {}):
-            return _TRACT_CACHE[atlas_key][name]
+        # 1. check ram cache
+        if name in _TRACT_CACHE.get(atlas, {}):
+            return _TRACT_CACHE[atlas][name]
 
-        # init cache dict
-        if atlas_key not in _TRACT_CACHE: _TRACT_CACHE[atlas_key] = {}
+        # ensure atlas dict exists
+        if atlas not in _TRACT_CACHE: _TRACT_CACHE[atlas] = {}
 
-        # load from disk
+        # 2. load from disk (try source .trk)
         try:
-            fpath = file_map.get(name)
-            if not fpath: return None
+            fpath = os.path.join(tract_dir, f"{name}.trk")
+            if not os.path.exists(fpath): return None
 
             tractogram = nib.streamlines.load(fpath)
             points, lines, tangents = lines_from_streamlines(tractogram.streamlines)
@@ -347,7 +339,7 @@ def plot_tracts(data=None,
             base_mesh.point_data['tangents'] = np.abs(tangents)
             
             # store in global cache
-            _TRACT_CACHE[atlas_key][name] = base_mesh
+            _TRACT_CACHE[atlas][name] = base_mesh
             return base_mesh
             
         except Exception as e:
@@ -355,7 +347,6 @@ def plot_tracts(data=None,
             return None
 
     # plotting loop
-    cache_key = 'custom' if custom_atlas_path else atlas
     for i, (view_name, cfg) in enumerate(sel_views.items()):
         plotter.subplot(i // ncols, i % ncols)
         
@@ -383,7 +374,7 @@ def plot_tracts(data=None,
             if cfg['side'] == 'R' and is_left and not is_right: continue
 
             # load mesh
-            base_mesh = _retrieve_tract_mesh(cache_key, name, file_map)
+            base_mesh = _retrieve_tract_mesh(atlas, name, tract_dir)
             if base_mesh is None: continue
             pv_mesh = base_mesh.copy(deep=False) 
 

@@ -1,12 +1,5 @@
 archive/
-
-yabplot/resources/atlas/tracts/hcp1065_ORIGINALHEAVY
-yabplot/resources/atlas/tracts/hcp1065_large
-yabplot/resources/atlas/tracts/hcp1065_medium
-yabplot/resources/atlas/tracts/hcp1065_small
-yabplot/resources/atlas/tracts/hcp1065_tiny
-yabplot/resources/atlas/tracts/xtract_large
-yabplot/resources/atlas/tracts/xtract_large_part
+yabplot/resources/
 newdata/
 dev/
 

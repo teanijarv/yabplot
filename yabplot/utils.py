@@ -6,14 +6,6 @@ import pyvista as pv
 import matplotlib.pyplot as plt
 from importlib.resources import files
 
-def get_resource_path(relpath=''):
-    return str(files('yabplot.resources') / relpath)
-
-def get_atlas_names(type):
-    dir_path = get_resource_path(os.path.join('atlas', type))
-    if not os.path.exists(dir_path): return []
-    return [d for d in os.listdir(dir_path) if os.path.isdir(os.path.join(dir_path, d))]
-
 def load_gii(gii_path):
     """Load GIfTI geometry (vertices, faces)."""
     mesh = nib.load(gii_path)
@@ -21,12 +13,31 @@ def load_gii(gii_path):
     faces = mesh.darrays[1].data
     return verts, faces
 
-def load_gii2pv(gii_path, smooth_i=15, smooth_f=0.6):
-    """Load GIfTI and convert to PyVista format."""
+def load_gii2pv(gii_path, smooth_i=0, smooth_f=0.1):
+    """
+    Load GIfTI and convert to PyVista format with optional smoothing.
+    
+    Parameters
+    ----------
+    smooth_i : int
+        Number of smoothing iterations (e.g. 15).
+    smooth_f : float
+        Relaxation factor (0.0 to 1.0, e.g. 0.6).
+    """
     verts, faces = load_gii(gii_path)
-    # Note: Smoothing logic omitted for brevity, assuming existing implementation
-    faces_pv = np.column_stack([np.full(len(faces), 3), faces]).flatten()
-    return pv.PolyData(verts, faces_pv)
+    
+    # create pyvista mesh
+    faces_pv = np.hstack([np.full((faces.shape[0], 1), 3), faces]).flatten().astype(int)
+    mesh = pv.PolyData(verts, faces_pv)
+    
+    # apply smoothing
+    if smooth_i > 0:
+        # use Laplacian smoothing (standard vtkSmoothPolyDataFilter)
+        # note: higher relaxation factors can shrink the mesh significantly
+        # if shrinkage is an issue, could consider mesh.smooth_taubin() instead
+        mesh = mesh.smooth(n_iter=smooth_i, relaxation_factor=smooth_f)
+    
+    return mesh
 
 def make_cortical_mesh(verts, faces, scalars):
     """Helper to create a PyVista mesh from raw buffers."""

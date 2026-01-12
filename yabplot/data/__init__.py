@@ -1,0 +1,304 @@
+"""
+Data management module for fetching and caching remote atlases.
+"""
+
+import os
+import glob
+import shutil
+import pooch
+from importlib.resources import files
+
+__all__ = ['get_available_resources']
+
+# define cache location
+# e.g., ~/.cache/yabplot
+CACHE_DIR = pooch.os_cache("yabplot")
+
+# setup registry
+_REGISTRY_PATH = files('yabplot.data').joinpath('registry.txt')
+_FETCHER = pooch.create(
+    path=CACHE_DIR,
+    base_url="", 
+    registry=None,
+)
+
+if _REGISTRY_PATH.is_file():
+    _FETCHER.load_registry(_REGISTRY_PATH)
+
+
+def get_available_resources(category=None):
+    """
+    Returns available resources from the registry.
+
+    Parameters
+    ----------
+    category : str or None
+        If provided (e.g., 'cortical', 'subcortical', 'tracts', 'bmesh'), returns a list of available names 
+        for that specific category.
+        If None, returns a dictionary containing all categories and their options.
+    """
+    if not _FETCHER.registry:
+        return [] if category else {}
+
+    # helper to clean names: e.g., "cortical-aparc.zip" -> ("cortical", "aparc")
+    def _parse_key(key):
+        if "-" not in key: return None, None
+        prefix, remainder = key.split("-", 1)
+        name = remainder.replace(".zip", "")
+        return prefix, name
+
+    # mode 1: specific category
+    if category:
+        available = []
+        for key in _FETCHER.registry.keys():
+            prefix, name = _parse_key(key)
+            if prefix == category:
+                available.append(name)
+        return sorted(available)
+
+    # mode 2: all categories
+    all_resources = {}
+    for key in _FETCHER.registry.keys():
+        prefix, name = _parse_key(key)
+        if prefix and name:
+            if prefix not in all_resources:
+                all_resources[prefix] = []
+            all_resources[prefix].append(name)
+    
+    for k in all_resources:
+        all_resources[k].sort()
+        
+    return all_resources
+
+
+def _fetch_and_unpack(resource_key):
+    """
+    Downloads zip, unpacks it, deletes the zip to save space, 
+    and returns the extraction path.
+    """
+    extract_dir_name = resource_key.replace(".zip", "")
+    extract_path = os.path.join(_FETCHER.path, extract_dir_name)
+
+    # optimization: check if unpacked folder already exists
+    # if yes, skip pooch check entirely to avoid re-downloading
+    # (since we delete the zip source, pooch would otherwise think it's missing)
+    if os.path.isdir(extract_path) and os.listdir(extract_path):
+        return extract_path
+
+    # fetch and unzip
+    try:
+        _FETCHER.fetch(
+            resource_key, 
+            processor=pooch.Unzip(extract_dir=extract_dir_name)
+        )
+    except ValueError:
+        # if key not in registry
+        available = list(_FETCHER.registry.keys())
+        raise ValueError(f"Resource '{resource_key}' not found in registry.")
+
+    # cleanup: delete the source zip to save space
+    zip_path = os.path.join(_FETCHER.path, resource_key)
+    if os.path.exists(zip_path):
+        os.remove(zip_path)
+    
+    return extract_path
+
+
+def _resolve_resource_path(name, category, custom_path=None):
+    """
+    Internal: Resolves atlas path via download or custom location.
+    """
+    # 1. custom path logic
+    if custom_path:
+        if os.path.isdir(custom_path):
+            return custom_path
+        raise FileNotFoundError(f"Custom atlas directory not found: {custom_path}")
+
+    # 2. standard download logic
+    resource_key = f"{category}-{name}.zip"
+    
+    # validate before fetching
+    if resource_key not in _FETCHER.registry:
+        available = get_available_resources(category)
+        human_cat = {
+            'cortical': 'Cortical parcellations (vertices)',
+            'subcortical': 'Subcortical segmentations (volumes)', 
+            'tracts': 'White matter bundles (tracts)',
+            'bmesh': 'Brain meshes'
+        }.get(category, category)
+        
+        raise ValueError(
+            f"Resource '{name}' is not available in {human_cat}.\n"
+            f"Available options: {available}"
+        )
+
+    return _fetch_and_unpack(resource_key)
+
+
+def _find_cortical_files(atlas_dir, strict_name=None):
+    """
+    Internal: Locates files, ignoring hidden/system folders.
+    """
+    
+    def _find_file(directory, pattern):
+        """searches root and valid subdirectories."""
+        # check root
+        candidates = glob.glob(os.path.join(directory, pattern))
+        
+        # check subdirs if empty
+        if not candidates:
+            try:
+                # get all items, filtering out hidden/system ones
+                subdirs = [
+                    os.path.join(directory, d) for d in os.listdir(directory)
+                    if os.path.isdir(os.path.join(directory, d)) 
+                    and not d.startswith(('.', '__'))
+                ]
+                subdirs.sort()
+                
+                for sd in subdirs:
+                    candidates.extend(glob.glob(os.path.join(sd, pattern)))
+            except FileNotFoundError:
+                pass
+        
+        return candidates
+
+    # --- mode a: strict (standard atlases) ---
+    if strict_name:
+        csv_name = f'{strict_name}_conte69.csv'
+        lut_name = f'{strict_name}_LUT.txt'
+        
+        found_csvs = _find_file(atlas_dir, csv_name)
+        if not found_csvs:
+            raise FileNotFoundError(f"Corrupt atlas. Missing '{csv_name}' in {atlas_dir}")
+        
+        found_luts = _find_file(atlas_dir, lut_name)
+        if not found_luts:
+             raise FileNotFoundError(f"Corrupt atlas. Missing '{lut_name}' in {atlas_dir}")
+            
+        return found_csvs[0], found_luts[0]
+
+    # --- mode b: flexible (custom atlases) ---
+    
+    # find csv
+    csv_candidates = _find_file(atlas_dir, "*.csv")
+    if len(csv_candidates) == 1:
+        csv_path = csv_candidates[0]
+    elif len(csv_candidates) > 1:
+        # resolve ambiguity
+        filtered = [f for f in csv_candidates if 'conte69' in f]
+        if len(filtered) == 1:
+            csv_path = filtered[0]
+        else:
+            names = [os.path.basename(c) for c in csv_candidates]
+            raise ValueError(f"Ambiguous CSVs found: {names}")
+    else:
+        raise FileNotFoundError(f"No .csv file found in custom directory: {atlas_dir}")
+
+    # find lut
+    lut_candidates = _find_file(atlas_dir, "*.txt") + _find_file(atlas_dir, "*.lut")
+    if len(lut_candidates) == 1:
+        lut_path = lut_candidates[0]
+    elif len(lut_candidates) > 1:
+        # resolve ambiguity
+        filtered = [f for f in lut_candidates if 'LUT' in f or 'lut' in f]
+        if len(filtered) == 1:
+            lut_path = filtered[0]
+        else:
+            names = [os.path.basename(c) for c in lut_candidates]
+            raise ValueError(f"Ambiguous LUTs found: {names}")
+    else:
+        raise FileNotFoundError(f"No LUT file found in custom directory: {atlas_dir}")
+        
+    return csv_path, lut_path
+
+
+def _find_subcortical_files(atlas_dir):
+    """
+    Internal: Scans directory for mesh files (.vtk preferred, then .gii).
+    Returns a dictionary: {region_name: file_path}
+    """
+    
+    def _scan_for_ext(directory, extension):
+        """Recursively finds files with extension, ignoring junk folders."""
+        candidates = []
+        # 1. Check root
+        candidates.extend(glob.glob(os.path.join(directory, f"*{extension}")))
+        
+        # 2. Check valid subdirectories
+        try:
+            subdirs = [
+                os.path.join(directory, d) for d in os.listdir(directory)
+                if os.path.isdir(os.path.join(directory, d)) 
+                and not d.startswith(('.', '__'))
+            ]
+            for sd in subdirs:
+                candidates.extend(glob.glob(os.path.join(sd, f"*{extension}")))
+        except FileNotFoundError:
+            pass
+            
+        return candidates
+
+    # try finding VTK files
+    vtk_files = _scan_for_ext(atlas_dir, ".vtk")
+    if vtk_files:
+        # Map basename -> full path
+        # e.g. "Left_Thalamus.vtk" -> "Left_Thalamus"
+        return {
+            os.path.splitext(os.path.basename(f))[0]: f 
+            for f in vtk_files
+        }
+
+    # if no VTKs, try GIfTI files
+    gii_files = _scan_for_ext(atlas_dir, ".gii")
+    if gii_files:
+        # filter for '_surface.surf.gii' but fallback to just .gii if typical naming isn't found
+        filtered_gii = [f for f in gii_files if '.surf.gii' in f]
+        if not filtered_gii:
+            filtered_gii = gii_files
+            
+        return {
+            os.path.basename(f).split('.')[0]: f 
+            for f in filtered_gii
+        }
+
+    raise FileNotFoundError(f"No .vtk or .gii mesh files found in {atlas_dir}")
+
+def _find_tract_files(atlas_dir):
+    """
+    Internal: Scans directory for tractography files (.trk).
+    Returns a dictionary: {tract_name: file_path}
+    """
+    
+    def _scan_for_ext(directory, extension):
+        """Recursively finds files with extension, ignoring junk folders."""
+        candidates = []
+        # 1. check root
+        candidates.extend(glob.glob(os.path.join(directory, f"*{extension}")))
+        
+        # 2. check valid subdirectories
+        try:
+            subdirs = [
+                os.path.join(directory, d) for d in os.listdir(directory)
+                if os.path.isdir(os.path.join(directory, d)) 
+                and not d.startswith(('.', '__'))
+            ]
+            for sd in subdirs:
+                candidates.extend(glob.glob(os.path.join(sd, f"*{extension}")))
+        except FileNotFoundError:
+            pass
+            
+        return candidates
+
+    # find .trk files
+    trk_files = _scan_for_ext(atlas_dir, ".trk")
+    
+    if not trk_files:
+        raise FileNotFoundError(f"No .trk files found in {atlas_dir}")
+
+    # map basename -> full path
+    # e.g. "CST_L.trk" -> "CST_L": "/path/to/CST_L.trk"
+    return {
+        os.path.splitext(os.path.basename(f))[0]: f 
+        for f in trk_files
+    }
