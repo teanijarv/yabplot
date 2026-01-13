@@ -4,28 +4,26 @@ Data management module for fetching and caching remote atlases.
 
 import os
 import glob
-import shutil
+from pathlib import Path
 import pooch
-from importlib.resources import files
 
 from ..utils import parse_lut
 
-__all__ = ['get_available_resources']
+__all__ = ['get_available_resources', 'get_atlas_regions']
 
 # define cache location
-# e.g., ~/.cache/yabplot
 CACHE_DIR = pooch.os_cache("yabplot")
 
 # setup registry
-_REGISTRY_PATH = files('yabplot.data').joinpath('registry.txt')
-_FETCHER = pooch.create(
+HERE = Path(__file__).parent
+REGISTRY_FILE = HERE / "registry.txt"
+
+GOODBOY = pooch.create(
     path=CACHE_DIR,
-    base_url="", 
+    base_url="",
     registry=None,
 )
-
-if _REGISTRY_PATH.is_file():
-    _FETCHER.load_registry(_REGISTRY_PATH)
+GOODBOY.load_registry(REGISTRY_FILE)
 
 
 def get_available_resources(category=None):
@@ -39,7 +37,7 @@ def get_available_resources(category=None):
         for that specific category.
         If None, returns a dictionary containing all categories and their options.
     """
-    if not _FETCHER.registry:
+    if not GOODBOY.registry:
         return [] if category else {}
 
     # helper to clean names: e.g., "cortical-aparc.zip" -> ("cortical", "aparc")
@@ -52,7 +50,7 @@ def get_available_resources(category=None):
     # mode 1: specific category
     if category:
         available = []
-        for key in _FETCHER.registry.keys():
+        for key in GOODBOY.registry.keys():
             prefix, name = _parse_key(key)
             if prefix == category:
                 available.append(name)
@@ -60,7 +58,7 @@ def get_available_resources(category=None):
 
     # mode 2: all categories
     all_resources = {}
-    for key in _FETCHER.registry.keys():
+    for key in GOODBOY.registry.keys():
         prefix, name = _parse_key(key)
         if prefix and name:
             if prefix not in all_resources:
@@ -147,7 +145,7 @@ def _fetch_and_unpack(resource_key):
     and returns the extraction path.
     """
     extract_dir_name = resource_key.replace(".zip", "")
-    extract_path = os.path.join(_FETCHER.path, extract_dir_name)
+    extract_path = os.path.join(GOODBOY.path, extract_dir_name)
 
     # optimization: check if unpacked folder already exists
     # if yes, skip pooch check entirely to avoid re-downloading
@@ -156,17 +154,17 @@ def _fetch_and_unpack(resource_key):
 
     # fetch and unzip
     try:
-        _FETCHER.fetch(
+        GOODBOY.fetch(
             resource_key, 
             processor=pooch.Unzip(extract_dir=extract_dir_name)
         )
     except ValueError:
         # if key not in registry
-        available = list(_FETCHER.registry.keys())
+        available = list(GOODBOY.registry.keys())
         raise ValueError(f"Resource '{resource_key}' not found in registry.")
 
     # cleanup: delete the source zip to save space
-    zip_path = os.path.join(_FETCHER.path, resource_key)
+    zip_path = os.path.join(GOODBOY.path, resource_key)
     if os.path.exists(zip_path):
         os.remove(zip_path)
     
@@ -187,7 +185,7 @@ def _resolve_resource_path(name, category, custom_path=None):
     resource_key = f"{category}-{name}.zip"
     
     # validate before fetching
-    if resource_key not in _FETCHER.registry:
+    if resource_key not in GOODBOY.registry:
         available = get_available_resources(category)
         human_cat = {
             'cortical': 'Cortical parcellations (vertices)',

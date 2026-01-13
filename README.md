@@ -5,7 +5,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/yabplot.svg)](https://pypi.org/project/yabplot/)
 [![Docs](https://github.com/teanijarv/yabplot/actions/workflows/docs.yml/badge.svg)](https://teanijarv.github.io/yabplot/)
 [![Tests](https://github.com/teanijarv/yabplot/actions/workflows/tests.yml/badge.svg)](https://github.com/teanijarv/yabplot/actions/workflows/tests.yml)
-<!-- [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXX) -->
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18237144.svg)](https://doi.org/10.5281/zenodo.18237144)
 
 **yabplot** is a Python library for creating beautiful, publication-quality 3D brain visualizations. it supports plotting cortical regions, subcortical structures, and white matter bundles.
 
@@ -71,4 +71,4 @@ yab.plot_tracts(data=data, atlas='xtract_tiny', figsize=(600, 300),
 
 ## acknowledgements
 
-yabplot relies on the extensive work of the neuroimaging community. if you use these atlases in your work, please cite the original authors.
+yabplot relies on the extensive work of the neuroimaging community. if you use these atlases in your work, please cite the original authors. if you use this package for any scientific work, please cite the DOI (see more info on [Zenodo](https://doi.org/10.5281/zenodo.18237144)).
