@@ -1,11 +1,51 @@
 # yabplot: yet another brain plot
 
-the title says it all.
+**yabplot** is a Python library for creating beautiful, publication-quality 3D brain visualizations. it supports plotting cortical regions, subcortical structures, and white matter bundles, built on top of [PyVista](https://docs.pyvista.org/).
 
-### TODO
+the idea is simple. while there are already amazing visualization tools available, they often focus on specific domains—using one tool for white matter tracts and another for cortical surfaces inevitably leads to inconsistent styles. i wanted a unified, simple-to-use tool that enables me (and hopefully others) to perform most brain visualizations in a single place. recognizing that neuroscience evolves daily, i designed **yabplot** to be modular: it supports standard pre-packaged atlases out of the box, but easily accepts any custom parcellation or tractography dataset you might need.
 
-- more atlases
-- interface functions for checking available atlases + their region names / orders
-- check https://brain.labsolver.org/hcp_trk_atlas.html for ackknowledgements for tracts
-- new atlas creation functions and examples + ability to visualise custom atlas not only pre-existing
-- resources to OSF and pooches to fetch data on-demand
+## features
+
+* **pre-existing atlases:** access many commonly used atlases (schaefer, brainnetome, hcp) on demand.
+* **simple to use:** plug-n-play functions for cortex, subcortex, and tracts with a unified API.
+* **custom atlases:** easily use your own parcellations, segmentations (.nii/.gii), or tractograms (.trk).
+* **flexible inputs:** accepts data as dictionaries (for partial mapping) or arrays (for strict mapping).
+
+## installation
+
+```bash
+uv add yabplot
+```
+or
+```bash
+pip install yabplot
+```
+
+requirements (see `pyproject.toml`): ipywidgets, nibabel, pandas, pooch, pyvista, scikit-image, trame, trame-vtk, trame-vuetify
+
+## quick start
+
+please refer to the documentation and examples for comprehensive guides.
+
+```python
+import yabplot as yabp
+import numpy as np
+
+# plot random data on cortical regions
+regions = yabp.get_atlas_regions('schaefer_400', 'cortical')
+data = np.random.rand(len(regions))
+yabp.plot_cortical(data=data, atlas='schaefer_400', cmap='viridis')
+
+# plot values for specific subcortical regions
+data = {'Left_Amygdala': 0.8, 'Right_Thalamus': 0.5}
+yabp.plot_subcortical(data=data, atlas='aseg', views=['left_lateral', 'superior'])
+
+# plot values for specific white matter bundles
+data = {'FMaj': 0.2, 'FMin': -0.3}
+yabp.plot_tracts(data=data, atlas='xtract_tiny', style='matte')
+
+```
+
+## acknowledgements
+
+yabplot relies on the extensive work of the neuroimaging community. if you use these atlases in your work, please cite the original authors.

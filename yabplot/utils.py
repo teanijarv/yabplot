@@ -75,7 +75,7 @@ def generate_distinct_colors(n_colors, seed=42):
     hue = np.random.rand()
     for _ in range(n_colors):
         hue = (hue + 0.618033988749895) % 1.0
-        colors.append(plt.cm.hsv(hue)[:3]) # Simplified using mpl for readability
+        colors.append(plt.cm.hsv(hue)[:3])
     return colors
 
 def parse_lut(lut_path):
