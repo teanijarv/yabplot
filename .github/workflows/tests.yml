@@ -1,0 +1,42 @@
+name: tests
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    # 1. Install System Libraries for 3D Graphics (Headless)
+    - name: Install system dependencies (Linux)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgl1-mesa-glx xvfb
+
+    # 2. Install your package and testing tools
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest
+        pip install ".[docs]"  # Installs yabplot + deps
+
+    # 3. Run Pytest inside a virtual monitor
+    - name: Run tests
+      run: |
+        # xvfb-run allows graphical apps to run without a real monitor
+        xvfb-run -a pytest
