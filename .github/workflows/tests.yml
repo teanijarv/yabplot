@@ -26,7 +26,7 @@ jobs:
     - name: Install system dependencies (Linux)
       run: |
         sudo apt-get update
-        sudo apt-get install -y libgl1-mesa-glx xvfb
+        sudo apt-get install -y libgl1 xvfb
 
     # 2. Install your package and testing tools
     - name: Install dependencies
