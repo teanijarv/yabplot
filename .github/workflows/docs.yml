@@ -31,9 +31,7 @@ jobs:
             
       - name: Install dependencies
         run: |
-          pip install mkdocs-material mkdocs-jupyter
-          # Install your own package so notebooks can import 'yabplot'
-          pip install . 
+          pip install ".[docs]"
           
       - name: Deploy to GitHub Pages
         run: mkdocs gh-deploy --force
