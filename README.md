@@ -1,8 +1,6 @@
 # yabplot: yet another brain plot
 
-<p align="center">
-  <img src="docs/assets/yabplot_logo.png" alt="logo width="200"/>
-</p>
+![logo](docs/assets/yabplot_logo.png)
 
 **yabplot** is a Python library for creating beautiful, publication-quality 3D brain visualizations. it supports plotting cortical regions, subcortical structures, and white matter bundles, built on top of [PyVista](https://docs.pyvista.org/).
 
@@ -10,7 +8,7 @@ the idea is simple. while there are already amazing visualization tools availabl
 
 ## features
 
-* **pre-existing atlases:** access many commonly used atlases (schaefer, brainnetome, hcp) on demand.
+* **pre-existing atlases:** access many commonly used atlases (schaefer2018, brainnetome, aparc, aseg, musus100, xtract, etc) on demand.
 * **simple to use:** plug-n-play functions for cortex, subcortex, and tracts with a unified API.
 * **custom atlases:** easily use your own parcellations, segmentations (.nii/.gii), or tractograms (.trk).
 * **flexible inputs:** accepts data as dictionaries (for partial mapping) or arrays (for strict mapping).
