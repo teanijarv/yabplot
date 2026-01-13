@@ -1,0 +1,67 @@
+site_name: yabplot
+site_url: https://teanijarv.github.io/yabplot
+repo_url: https://github.com/teanijarv/yabplot
+repo_name: teanijarv/yabplot
+
+extra_css:
+  - assets/custom.css
+
+theme:
+  icon:
+    logo: material/brain
+  favicon: material/brain
+  name: material
+  font:
+    text: Roboto
+    code: Roboto Mono
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - content.code.copy
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/teanijarv/yabplot
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [.]
+          options:
+            docstring_style: numpy
+            show_source: true
+  - mkdocs-jupyter:
+      execute: false
+
+nav:
+  - home: index.md
+  - tutorials:
+      - getting started: tutorials/getting_started.ipynb
+      - data mapping: tutorials/data_mapping.ipynb
+      - plot styling: tutorials/plot_styling.ipynb
+      - plotting custom subcortical atlas: tutorials/custom_subcortical_atlas.ipynb
+      - plotting custom cortical atlas: tutorials/custom_cortical_atlas.ipynb
+  - API reference:
+      - plotting functions: reference/plotting.md
+      - helper utilities: reference/utils.md

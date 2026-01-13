@@ -15,3 +15,11 @@ dependencies = [
     "trame-vtk>=2.10.0",
     "trame-vuetify>=3.1.0",
 ]
+
+[project.optional-dependencies]
+    docs = [
+      "mkdocs",
+      "mkdocs-jupyter>=0.25.1",
+      "mkdocs-material",
+      "mkdocstrings[python]",
+]

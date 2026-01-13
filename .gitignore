@@ -1,7 +1,12 @@
 archive/
 yabplot/resources/
-examples/exampledata
+examples/
+examples_/
+docs/tutorials/tutorial_data/
 dev/
+site/
+test.ipynb
+todo.md
 
 .DS_Store
 __pycache__/

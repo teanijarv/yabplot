@@ -370,7 +370,7 @@ def clear_tract_cache():
 
 def plot_tracts(data=None, atlas=None, custom_atlas_path=None, views=None, layout=None, 
                 figsize=(1000, 800), cmap='coolwarm', alpha=1.0, vminmax=[None, None], 
-                nan_color='#BDBDBD', nan_alpha=1.0, legend=True, style='default',
+                nan_color='#BDBDBD', nan_alpha=1.0, legend=False, style='default',
                 bmesh_type='conte69', bmesh_alpha=0.2, bmesh_color='lightgray', 
                 zoom=1.2, orientation_coloring=False, display_type='static', 
                 tract_kwargs=dict(render_lines_as_tubes=True, line_width=1.2),
