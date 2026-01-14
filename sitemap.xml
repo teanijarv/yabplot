@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+         <loc>https://teanijarv.github.io/yabplot/</loc>
+         <lastmod>2026-01-14</lastmod>
+    </url>
+    <url>
+         <loc>https://teanijarv.github.io/yabplot/reference/plotting/</loc>
+         <lastmod>2026-01-14</lastmod>
+    </url>
+    <url>
+         <loc>https://teanijarv.github.io/yabplot/reference/utils/</loc>
+         <lastmod>2026-01-14</lastmod>
+    </url>
+    <url>
+         <loc>https://teanijarv.github.io/yabplot/tutorials/custom_cortical_atlas/</loc>
+         <lastmod>2026-01-14</lastmod>
+    </url>
+    <url>
+         <loc>https://teanijarv.github.io/yabplot/tutorials/custom_subcortical_atlas/</loc>
+         <lastmod>2026-01-14</lastmod>
+    </url>
+    <url>
+         <loc>https://teanijarv.github.io/yabplot/tutorials/data_mapping/</loc>
+         <lastmod>2026-01-14</lastmod>
+    </url>
+    <url>
+         <loc>https://teanijarv.github.io/yabplot/tutorials/getting_started/</loc>
+         <lastmod>2026-01-14</lastmod>
+    </url>
+    <url>
+         <loc>https://teanijarv.github.io/yabplot/tutorials/plot_styling/</loc>
+         <lastmod>2026-01-14</lastmod>
+    </url>
+</urlset>
