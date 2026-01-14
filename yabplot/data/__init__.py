@@ -332,7 +332,7 @@ def _find_subcortical_files(atlas_dir):
 
 def _find_tract_files(atlas_dir):
     """
-    Internal: Scans directory for tractography files (.trk).
+    Internal: Scans directory for tractography files (.trk or .tck).
     Returns a dictionary: {tract_name: file_path}
     """
     
@@ -356,14 +356,15 @@ def _find_tract_files(atlas_dir):
             
         return candidates
 
-    # find .trk files
-    trk_files = _scan_for_ext(atlas_dir, ".trk")
+    # scan for both .trk and .tck
+    found_files = _scan_for_ext(atlas_dir, ".trk") + _scan_for_ext(atlas_dir, ".tck")
     
-    if not trk_files:
-        raise FileNotFoundError(f"No .trk files found in {atlas_dir}")
+    if not found_files:
+        raise FileNotFoundError(f"No .trk or .tck files found in {atlas_dir}")
 
     # map basename -> full path
     return {
         os.path.splitext(os.path.basename(f))[0]: f 
-        for f in trk_files
+        for f in found_files
     }
+

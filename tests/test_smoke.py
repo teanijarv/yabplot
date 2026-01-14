@@ -18,3 +18,21 @@ def test_plotter_instantiation():
     plotter.add_mesh(pv.Sphere())
     plotter.show()
     plotter.close()
+
+def test_plot_cortical():
+    """
+    Integration test: Downloads 'aparc' and plots it.
+    """
+    yab.plot_cortical(atlas='aparc')
+
+def test_plot_subcortical():
+    """
+    Integration test: Downloads 'aseg' and plots it.
+    """
+    yab.plot_subcortical(atlas='aseg')
+
+def test_plot_tracts():
+    """
+    Integration test: Downloads 'xtract_tiny' and plots it.
+    """
+    yab.plot_tracts(atlas='xtract_tiny')
