@@ -17,6 +17,17 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Cache downloaded data
+      uses: actions/cache@v4
+      with:
+        # The folder where pooch saves files on Linux
+        path: ~/.cache/yabplot
+        # Check registry.txt to decide if we need a fresh download
+        # (using **/ finds the file even if your folder structure varies)
+        key: yabplot-data-${{ hashFiles('**/registry.txt') }}
+        restore-keys: |
+          yabplot-data-
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
