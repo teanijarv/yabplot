@@ -24,6 +24,171 @@ from .scene import (
 )
 
 
+# --- plot for voxelwise data ---
+def plot_voxelwise(voxel_data, affine=None, views=None, layout=None, bmesh_type='midthickness',
+                   figsize=(1000, 600), cmap='coolwarm', vminmax=[None, None], 
+                   nan_color=(1.0, 1.0, 1.0), style='default', zoom=1.2, 
+                   sampling_method='interpolation', mask_background=True, 
+                   display_type='static', export_path=None):
+    """
+    Visualize voxelwise (volumetric) data on the cortical surface.
+
+    This function samples 3D volumetric data onto a standard cortical surface mesh.
+    It supports both NIfTI files (with automatic affine extraction) and numpy arrays
+    (with user-provided affine transformation).
+
+    Parameters
+    ----------
+    voxel_data : str or numpy.ndarray
+        Volumetric data to visualize. If str, treated as a path to a NIfTI file
+        (.nii or .nii.gz). If numpy array, must be 3D with corresponding affine transform.
+    affine : numpy.ndarray, optional
+        4x4 affine transformation matrix (world to voxel coordinates). Required if
+        voxel_data is a numpy array. If voxel_data is a NIfTI path, this is ignored.
+    views : list of str, optional
+        Views to display. Can be a list of presets ('left_lateral', 'right_medial', 
+        'left_medial', 'right_lateral', 'superior', 'inferior', 'anterior', 'posterior').
+        Defaults to all views.
+    layout : tuple (rows, cols), optional
+        Grid layout for subplots. If None, automatically calculated based on the number of views.
+    bmesh_type : str
+        Name of the background context brain mesh (e.g., 'midthickness', 'white', 'swm', etc).
+        Default is 'midthickness'.
+    figsize : tuple (width, height), optional
+        Window size in pixels. Default is (1000, 600).
+    cmap : str or matplotlib.colors.Colormap, optional
+        Colormap for data visualization. Default is 'coolwarm'.
+    vminmax : list [min, max], optional
+        Manual lower and upper bounds for the colormap. If [None, None],
+        bounds are inferred from the data range.
+    nan_color : tuple or str, optional
+        Color for regions with missing (NaN) data. Default is white (1.0, 1.0, 1.0).
+    style : str, optional
+        Lighting preset ('default', 'matte', 'glossy', 'sculpted', 'flat').
+    zoom : float, optional
+        Camera zoom level. >1.0 zooms in, <1.0 zooms out. Default is 1.2.
+    sampling_method : str, optional
+        Method for sampling voxels to surface vertices. Options: 'nearest' for
+        nearest-neighbor sampling, 'interpolation' for trilinear interpolation (default).
+    mask_background : bool, optional
+        If True (default), voxels with values below vmin are set to NaN and rendered
+        as background (invisible). This allows the underlying mesh to be visible and is
+        useful for visualizing binary masks or thresholded data where background values
+        should be hidden. Set to False to visualize all values.
+    display_type : {'static', 'interactive', 'none'}, optional
+        'static': Returns a static image (good for notebooks).
+        'interactive': Opens an interactive viewer.
+        'none': Renders off-screen (useful for batch export).
+    export_path : str, optional
+        If provided, saves the final figure to this path (e.g., 'figure.png').
+
+    Returns
+    -------
+    pyvista.Plotter
+        The plotter instance used for rendering.
+    
+    Examples
+    --------
+    Plot a NIfTI file:
+    >>> yab.plot_voxelwise('data.nii.gz', views=['left_lateral', 'superior'])
+    
+    Plot a numpy array with affine:
+    >>> data = np.random.rand(182, 218, 182)
+    >>> affine = np.eye(4)
+    >>> yab.plot_voxelwise(data, affine=affine, cmap='viridis')
+    
+    Plot a binary mask with background hidden:
+    >>> mask = (np.random.rand(91, 109, 91) > 0.5).astype(float)
+    >>> yab.plot_voxelwise(mask, affine=np.eye(4), mask_background=True)
+    """
+    from .utils import load_nifti_data, prep_voxel_array, sample_voxels_to_surface
+    
+    # Load volumetric data
+    if isinstance(voxel_data, str):
+        voxel_array, affine = load_nifti_data(voxel_data)
+    elif isinstance(voxel_data, np.ndarray):
+        if affine is None:
+            raise ValueError(
+                "affine parameter is required when voxel_data is a numpy array. "
+                "Provide a 4x4 affine transformation matrix. "
+                "If using a NIfTI file, pass the file path instead."
+            )
+        voxel_array, affine = prep_voxel_array(voxel_data, affine=affine)
+    else:
+        raise TypeError(
+            f"voxel_data must be a NIfTI file path (str) or numpy array, "
+            f"got {type(voxel_data)}."
+        )
+
+    # Load brain meshes
+    bmesh_path = _resolve_resource_path(bmesh_type, 'bmesh')
+    lh_v, lh_f = load_gii(os.path.join(bmesh_path, f'fs_LR.32k.L.{bmesh_type}.surf.gii'))
+    rh_v, rh_f = load_gii(os.path.join(bmesh_path, f'fs_LR.32k.R.{bmesh_type}.surf.gii'))
+
+    # Sample voxel data to surface vertices
+    lh_vals = sample_voxels_to_surface(voxel_array, affine, lh_v, method=sampling_method)
+    rh_vals = sample_voxels_to_surface(voxel_array, affine, rh_v, method=sampling_method)
+
+    # Create PyVista meshes with sampled data
+    lh_mesh = make_cortical_mesh(lh_v, lh_f, lh_vals)
+    rh_mesh = make_cortical_mesh(rh_v, rh_f, rh_vals)
+
+    # Setup colormap and value range
+    all_vals = np.concatenate([lh_vals, rh_vals])
+    vmin = vminmax[0] if vminmax[0] is not None else np.nanmin(all_vals)
+    vmax = vminmax[1] if vminmax[1] is not None else np.nanmax(all_vals)
+
+    # Mask background: set values below vmin to NaN for cleaner visualization
+    if mask_background and not np.isnan(vmin):
+        lh_vals[lh_vals < vmin] = np.nan
+        rh_vals[rh_vals < vmin] = np.nan
+        # Update meshes with masked data
+        lh_mesh['Data'] = lh_vals
+        rh_mesh['Data'] = rh_vals
+
+    # Setup plotter
+    sel_views = get_view_configs(views)
+    plotter, ncols, nrows = setup_plotter(sel_views, layout, figsize, display_type, export_path=export_path)
+    shading_params = get_shading_preset(style)
+    scalar_bar_mapper = None
+
+    # Render each view
+    for i, (name, cfg) in enumerate(sel_views.items()):
+        plotter.subplot(i // ncols, i % ncols)
+        
+        # Collect meshes for this view
+        view_meshes = []
+        if cfg['side'] in ['L', 'both']:
+            if lh_mesh.n_points > 0:
+                view_meshes.append(lh_mesh)
+        if cfg['side'] in ['R', 'both']:
+            if rh_mesh.n_points > 0:
+                view_meshes.append(rh_mesh)
+
+        # Add meshes with data coloring
+        for mesh in view_meshes:
+            actor = plotter.add_mesh(
+                mesh, scalars='Data', cmap=cmap, clim=(vmin, vmax),
+                nan_color=nan_color, show_scalar_bar=False,
+                smooth_shading=True, interpolate_before_map=True, **shading_params
+            )
+            if scalar_bar_mapper is None:
+                scalar_bar_mapper = actor.mapper
+
+        set_camera(plotter, cfg, zoom=zoom)
+        plotter.hide_axes()
+
+    # Add scalar bar
+    if scalar_bar_mapper:
+        plotter.subplot(nrows - 1, 0)
+        plotter.add_scalar_bar(
+            mapper=scalar_bar_mapper, vertical=False,
+            position_x=0.3, position_y=0.25, height=0.5, width=0.4
+        )
+
+    return finalize_plot(plotter, export_path, display_type)
+
+
 # --- plot for cortical surface ---
 
 def plot_cortical(data=None, atlas=None, custom_atlas_path=None, views=None, layout=None, 
@@ -148,7 +313,7 @@ def plot_cortical(data=None, atlas=None, custom_atlas_path=None, views=None, lay
 
     # plotter setup
     sel_views = get_view_configs(views)
-    plotter, ncols, nrows = setup_plotter(sel_views, layout, figsize, display_type)
+    plotter, ncols, nrows = setup_plotter(sel_views, layout, figsize, display_type, export_path=export_path)
     shading_params = get_shading_preset(style)
     scalar_bar_mapper = None
 
@@ -307,7 +472,7 @@ def plot_subcortical(data=None, atlas=None, custom_atlas_path=None, views=None, 
     sel_views = get_view_configs(views)
     needs_bottom = (data is not None) or legend
     plotter, ncols, nrows = setup_plotter(sel_views, layout, figsize, display_type, 
-                                           needs_bottom_row=needs_bottom)
+                                           needs_bottom_row=needs_bottom, export_path=export_path)
     
     # get shading parameters from style
     shading_params = get_shading_preset(style)
@@ -504,7 +669,7 @@ def plot_tracts(data=None, atlas=None, custom_atlas_path=None, views=None, layou
     sel_views = get_view_configs(views)
     needs_bottom = (data is not None and not orientation_coloring) or legend
     plotter, ncols, nrows = setup_plotter(sel_views, layout, figsize, display_type, 
-                                           needs_bottom_row=needs_bottom)
+                                           needs_bottom_row=needs_bottom, export_path=export_path)
     plotter.enable_depth_peeling(number_of_peels=10)
     plotter.enable_anti_aliasing('msaa') # smooth lines
     shading_params = get_shading_preset(style)

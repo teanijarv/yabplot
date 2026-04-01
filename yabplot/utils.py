@@ -4,6 +4,7 @@ import pandas as pd
 import nibabel as nib
 import pyvista as pv
 import scipy.sparse as sp
+import scipy.ndimage as ndi
 import matplotlib.pyplot as plt
 from importlib.resources import files
 
@@ -256,3 +257,149 @@ def lines_from_streamlines(streamlines):
         tangents.append(vecs / norms)
         
     return points, lines, np.vstack(tangents)
+
+# --- voxelwise data functions ---
+
+def load_nifti_data(nifti_path):
+    """
+    Load volumetric data from a NIfTI file.
+    
+    Parameters
+    ----------
+    nifti_path : str
+        Path to the NIfTI file (.nii or .nii.gz).
+    
+    Returns
+    -------
+    data : numpy.ndarray
+        3D volumetric data array.
+    affine : numpy.ndarray
+        4x4 affine transformation matrix (world to voxel coordinates).
+    """
+    img = nib.load(nifti_path)
+    data = img.get_fdata()
+    affine = np.asarray(img.affine)
+    
+    # Squeeze singleton dimensions (e.g., (91, 109, 91, 1) -> (91, 109, 91))
+    data = np.squeeze(data)
+    
+    if data.ndim != 3:
+        raise ValueError(
+            f"Expected 3D volumetric data, but got shape {data.shape} after squeezing. "
+            f"Please provide a 3D NIfTI file (or 4D with singleton last dimension)."
+        )
+    
+    return data.astype(np.float32), affine.astype(np.float32)
+
+def prep_voxel_array(data, affine=None):
+    """
+    Prepare and validate voxelwise data for plotting.
+    
+    Parameters
+    ----------
+    data : numpy.ndarray
+        3D volumetric data array.
+    affine : numpy.ndarray, optional
+        4x4 affine transformation matrix. If None, assumes identity transform
+        (data already in voxel/index coordinates).
+    
+    Returns
+    -------
+    data : numpy.ndarray
+        Standardized float32 data array.
+    affine : numpy.ndarray
+        4x4 affine transformation matrix.
+    """
+    if not isinstance(data, np.ndarray):
+        raise TypeError("data must be a numpy array.")
+    
+    if data.ndim != 3:
+        raise ValueError(
+            f"Expected 3D array, but got shape {data.shape}."
+        )
+    
+    data = data.astype(np.float32)
+    
+    if affine is None:
+        affine = np.eye(4, dtype=np.float32)
+    else:
+        affine = np.asarray(affine, dtype=np.float32)
+        if affine.shape != (4, 4):
+            raise ValueError(
+                f"affine must be a 4x4 matrix, but got shape {affine.shape}."
+            )
+    
+    return data, affine
+
+def sample_voxels_to_surface(voxel_data, affine, vertices, method='interpolation'):
+    """
+    Sample volumetric voxel data onto surface vertices.
+    
+    Converts surface vertices from world coordinates to voxel indices via the
+    affine transformation, then samples voxel values at those locations.
+    
+    Parameters
+    ----------
+    voxel_data : numpy.ndarray
+        3D volumetric data array.
+    affine : numpy.ndarray
+        4x4 affine transformation matrix (world to voxel coordinates).
+    vertices : numpy.ndarray
+        N x 3 array of surface vertex coordinates in world space.
+    method : str, optional
+        Sampling method: 'nearest' for nearest-neighbor, 'interpolation' for 
+        trilinear interpolation (default).
+    
+    Returns
+    -------
+    sampled_values : numpy.ndarray
+        Array of N sampled values, one per vertex. Out-of-bounds locations 
+        are set to NaN.
+    """
+    if method not in ['nearest', 'interpolation']:
+        raise ValueError(f"method must be 'nearest' or 'interpolation', got '{method}'.")
+    
+    # Convert world coordinates to voxel indices
+    # vertices are Nx3 in world coords; add homogeneous coordinate
+    ones = np.ones((vertices.shape[0], 1), dtype=np.float32)
+    vertices_hom = np.hstack([vertices, ones])  # Nx4
+    
+    # Apply affine: voxel_coords = affine^-1 @ world_coords
+    affine_inv = np.linalg.inv(affine)
+    voxel_coords = vertices_hom @ affine_inv.T  # Nx4
+    voxel_indices = voxel_coords[:, :3]  # Nx3
+    
+    sampled_values = np.full(len(vertices), np.nan, dtype=np.float32)
+    
+    if method == 'nearest':
+        # Nearest-neighbor sampling
+        voxel_indices_int = np.round(voxel_indices).astype(int)
+        
+        # Check bounds
+        valid = (
+            (voxel_indices_int[:, 0] >= 0) & (voxel_indices_int[:, 0] < voxel_data.shape[0]) &
+            (voxel_indices_int[:, 1] >= 0) & (voxel_indices_int[:, 1] < voxel_data.shape[1]) &
+            (voxel_indices_int[:, 2] >= 0) & (voxel_indices_int[:, 2] < voxel_data.shape[2])
+        )
+        
+        sampled_values[valid] = voxel_data[
+            voxel_indices_int[valid, 0],
+            voxel_indices_int[valid, 1],
+            voxel_indices_int[valid, 2]
+        ]
+    
+    else:  # interpolation
+        # Trilinear interpolation using scipy.ndimage.map_coordinates
+        # map_coordinates expects (D, N) shaped indices, where D is dimensionality
+        valid = (
+            (voxel_indices[:, 0] >= 0) & (voxel_indices[:, 0] < voxel_data.shape[0] - 1) &
+            (voxel_indices[:, 1] >= 0) & (voxel_indices[:, 1] < voxel_data.shape[1] - 1) &
+            (voxel_indices[:, 2] >= 0) & (voxel_indices[:, 2] < voxel_data.shape[2] - 1)
+        )
+        
+        coords = voxel_indices[valid].T  # 3xM
+        sampled_values[valid] = ndi.map_coordinates(
+            voxel_data, coords, order=1, mode='constant', cval=np.nan, prefilter=False
+        )
+    
+    return sampled_values

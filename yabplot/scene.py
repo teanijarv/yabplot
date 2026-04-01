@@ -73,7 +73,7 @@ def get_view_configs(view_names):
     if view_names is None: return all_views
     return {k: all_views[k] for k in view_names if k in all_views}
 
-def setup_plotter(sel_views, layout, figsize, display_type, needs_bottom_row=True):
+def setup_plotter(sel_views, layout, figsize, display_type, needs_bottom_row=True, export_path=None):
     n = len(sel_views)
     if layout is None:
         if n <= 4: base_layout = (1, n)
@@ -90,8 +90,10 @@ def setup_plotter(sel_views, layout, figsize, display_type, needs_bottom_row=Tru
         groups = None
         row_weights = None
 
+    # Use off-screen mode if exporting or if display_type is 'object'
+    use_offscreen = (display_type == 'object') or (export_path is not None)
     plotter = pv.Plotter(shape=(nrows, ncols), groups=groups, row_weights=row_weights,
-                         off_screen=(display_type=='object'), window_size=figsize, border=False)
+                         off_screen=use_offscreen, window_size=figsize, border=False)
     plotter.set_background('white')
     return plotter, ncols, nrows
         
@@ -115,10 +117,14 @@ def set_camera(plotter, view_cfg, zoom=1.0, distance=200):
     plotter.camera.zoom(zoom)
 
 def finalize_plot(plotter, export_path, display_type):
-    if export_path: 
+    if export_path:
+        # Screenshot (rendering is automatic in off-screen mode)
         plotter.screenshot(export_path, transparent_background=True)
     
     if display_type == 'static': 
+        # For off-screen plotters, render before showing
+        if plotter.off_screen:
+            plotter.render()
         out = plotter.show(jupyter_backend='static')
         plotter.close()
     elif display_type == 'interactive': 
