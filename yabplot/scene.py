@@ -92,7 +92,8 @@ def setup_plotter(sel_views, layout, figsize, display_type, needs_bottom_row=Tru
         row_weights = None
 
     plotter = pv.Plotter(shape=(nrows, ncols), groups=groups, row_weights=row_weights,
-                         off_screen=(display_type=='object'), window_size=figsize, border=False)
+                         off_screen=(display_type=='object' or display_type=='none'),
+                         window_size=figsize, border=False)
     plotter.set_background('white')
     return plotter, ncols, nrows
         
