@@ -70,3 +70,6 @@ venv.bak/
 
 # Visual Studio Code
 .vscode/
+
+# Claude
+CLAUDE.md
