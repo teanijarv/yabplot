@@ -332,7 +332,7 @@ def plot_vertexwise(lh, rh, scalars='Data', ax=None, cbar_kwargs=None, views=Non
 ### PLOT FOR ATLAS-BASED SUBCORTICAL DATA ###
 
 def plot_subcortical(data=None, atlas=None, custom_atlas_path=None, ax=None, cbar_kwargs=None, views=None, layout=None,
-                     figsize=None, cmap='coolwarm', vminmax=[None, None], nan_color='#cccccc',
+                     figsize=None, cmap=None, vminmax=[None, None], nan_color='#cccccc',
                      nan_alpha=1.0, style='default', bmesh='midthickness',
                      bmesh_alpha=0.15, bmesh_color='lightgray', zoom=1.2, display_type='matplotlib',
                      export_path=None, custom_atlas_proc=dict(smooth_i=15, smooth_f=0.6),
@@ -364,7 +364,10 @@ def plot_subcortical(data=None, atlas=None, custom_atlas_path=None, ax=None, cba
     figsize : tuple (width, height), optional
         Window size in inches. If None, automatically calculated based on the number of views and layout.
     cmap : str or matplotlib.colors.Colormap, optional
-        Colormap for continuous data. Ignored if `data` is None. Default is 'coolwarm'.
+        Colormap for continuous data. Defaults to 'coolwarm' when `data` is given.
+        If `data` is None (atlas mode), `cmap` is unused by default and regions get
+        randomly-seeded distinct colors; pass a colormap name to instead sample
+        region colors from that colormap's gradient.
     vminmax : list [min, max], optional
         Manual lower and upper bounds for the colormap. If [None, None],
         bounds are inferred from the data range.
@@ -443,6 +446,7 @@ def plot_subcortical(data=None, atlas=None, custom_atlas_path=None, ax=None, cba
 
     # prepare colors and map data
     if data is not None:
+        cmap = cmap if cmap is not None else 'coolwarm'
         d_data = prep_data(data, rmesh_names, atlas, 'subcortical')
         valid_vals = [v for v in d_data.values() if pd.notna(v)]
         vmin = vminmax[0] if vminmax[0] is not None else (min(valid_vals) if valid_vals else 0)
