@@ -227,7 +227,7 @@ def plot_cortical(data=None, atlas=None, custom_atlas_path=None, ax=None, cbar_k
 ### PLOT FOR VERTEX-WISE CORTICAL DATA ###
 
 def plot_vertexwise(lh, rh, scalars='Data', ax=None, cbar_kwargs=None, views=None, layout=None, figsize=None,
-                    cmap='coolwarm', vminmax=[None, None], nan_color=(1.0, 1.0, 1.0), style='default', zoom=1.2,
+                    cmap='coolwarm', lut=None, vminmax=[None, None], nan_color=(1.0, 1.0, 1.0), style='default', zoom=1.2,
                     display_type='matplotlib', export_path=None):
     """
     Visualize arbitrary per-vertex scalar data on a user-supplied brain mesh.
@@ -254,6 +254,9 @@ def plot_vertexwise(lh, rh, scalars='Data', ax=None, cbar_kwargs=None, views=Non
         Window size in inches. If None, automatically calculated based on the number of views and layout.
     cmap : str or matplotlib.colors.Colormap, optional
         Colormap. Default is 'coolwarm'.
+    lut : array-like, optional
+        Lookup table for categorical data. If None, use default categorical colormap from
+        matplotlib.
     vminmax : list [min, max], optional
         Colormap bounds. If [None, None], inferred from data range.
     nan_color : tuple or str, optional
@@ -305,11 +308,20 @@ def plot_vertexwise(lh, rh, scalars='Data', ax=None, cbar_kwargs=None, views=Non
     rh_v, rh_f = extract_polydata(rh)
     rh_vals_raw = rh[scalars]
 
+    # Assess if data is categorical (integer) or continuous (float)
+    is_cat = np.issubdtype(lh_vals_raw.dtype, np.integer) and np.issubdtype(rh_vals_raw.dtype, np.integer)
+
+    # If lut is none but is_cat == True, set the lut to a categorical colormap with enough colors for the max id
+    if is_cat and lut is None:
+        max_id = np.max([np.max(lh_vals_raw), np.max(rh_vals_raw)])
+        lut = generate_distinct_colors(max_id + 1, seed=42)
+
     # render
     return _render_cortical_views(
-        lh_v, lh_f, lh_vals_raw, rh_v, rh_f, rh_vals_raw, False, ax, cbar_kwargs,
+        lh_v, lh_f, lh_vals_raw, rh_v, rh_f, rh_vals_raw, is_cat, ax, cbar_kwargs,
         views, layout, figsize, cmap, vminmax, nan_color, style,
-        zoom, None, display_type, export_path
+        zoom, None, display_type, export_path, lut_colors=lut,
+        max_id=np.max([np.max(lh_vals_raw), np.max(rh_vals_raw)])
     )
 
 
