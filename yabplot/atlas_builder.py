@@ -289,7 +289,7 @@ def build_subcortical_atlas(nii_path, labels_dict, out_dir, include_list=None, e
 
     # load the nifti volume and its affine matrix
     img = nib.load(nii_path)
-    data = img.get_fdata()
+    data = img.get_fdata().round()
     affine = img.affine
 
     # loop through targets, extract meshes, and save
