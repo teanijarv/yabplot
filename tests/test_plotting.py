@@ -106,6 +106,8 @@ def test_export_path(tmp_path):
     # prefix patterns
     ("l-thalamus", "thalamus"),
     ("r-thalamus", "thalamus"),
+    ("L_Thalamus", "Thalamus"),
+    ("R_Thalamus", "Thalamus"),
     # word prefix patterns
     ("left_caudate", "caudate"),
     ("right_caudate", "caudate"),
@@ -119,9 +121,9 @@ def test_get_base_name(name, expected):
     assert get_base_name(name) == expected
 
 
-# --- hemisphere_colors behavioral tests ---
+# --- shared_hemisphere_colors behavioral tests ---
 
-def _count_unique_region_colors(hemisphere_colors):
+def _count_unique_region_colors(shared_hemisphere_colors):
     """Helper: run plot_subcortical and return the count of unique region colors."""
     from unittest.mock import patch
 
@@ -136,7 +138,7 @@ def _count_unique_region_colors(hemisphere_colors):
 
     with patch.object(pv.Plotter, 'add_mesh', recording_add_mesh):
         yab.plot_subcortical(
-            atlas='aseg', display_type='matplotlib', hemisphere_colors=hemisphere_colors
+            atlas='aseg', display_type='matplotlib', shared_hemisphere_colors=shared_hemisphere_colors
         )
 
     return len(set(
@@ -145,46 +147,48 @@ def _count_unique_region_colors(hemisphere_colors):
     ))
 
 
-def test_subcortical_hemisphere_colors_false_more_unique_than_true():
-    """hemisphere_colors=False (default) yields more unique colors than True."""
-    unique_false = _count_unique_region_colors(hemisphere_colors=False)
-    unique_true = _count_unique_region_colors(hemisphere_colors=True)
+def test_subcortical_shared_hemisphere_colors_false_more_unique_than_true():
+    """shared_hemisphere_colors=False (default) yields more unique colors than True."""
+    unique_false = _count_unique_region_colors(shared_hemisphere_colors=False)
+    unique_true = _count_unique_region_colors(shared_hemisphere_colors=True)
     assert unique_false > unique_true
 
 
-def test_subcortical_hemisphere_colors_smoke():
-    """Smoke test: hemisphere_colors=True renders without error."""
-    yab.plot_subcortical(atlas='aseg', display_type='matplotlib', hemisphere_colors=True)
+def test_subcortical_shared_hemisphere_colors_smoke():
+    """Smoke test: shared_hemisphere_colors=True renders without error."""
+    yab.plot_subcortical(atlas='aseg', display_type='matplotlib', shared_hemisphere_colors=True)
 
 
-def test_subcortical_shuffle_colors_smoke():
-    """Smoke test: shuffle_colors=True renders without error."""
-    yab.plot_subcortical(atlas='aseg', display_type='matplotlib', shuffle_colors=True)
+def test_subcortical_atlas_color_seed_smoke():
+    """Smoke test: a non-default atlas_color_seed renders without error."""
+    yab.plot_subcortical(atlas='aseg', display_type='matplotlib', atlas_color_seed=7)
 
 
-def test_shuffle_colors_reassigns_colors():
-    """shuffle_colors logic reassigns colors to different regions (unit test)."""
-    from yabplot.utils import generate_distinct_colors
-    import random
+def _capture_region_colors(atlas_color_seed, cmap):
+    """Helper: return the per-region colors add_mesh receives, in call order."""
+    from unittest.mock import patch
 
-    names = ['Left-Putamen', 'Right-Putamen', 'Left-Caudate', 'Right-Caudate',
-             'Left-Thalamus', 'Right-Thalamus', 'Left-Hippocampus', 'Right-Hippocampus']
-    n = len(names)
-    key_colors = generate_distinct_colors(n, seed=42)
+    captured = []
+    original_add_mesh = pv.Plotter.add_mesh
 
-    color_map_default = dict(zip(names, key_colors))
+    def recording_add_mesh(self, mesh, **kwargs):
+        color = kwargs.get('color')
+        if color is not None:
+            captured.append(tuple(color) if not isinstance(color, str) else color)
+        return original_add_mesh(self, mesh, **kwargs)
 
-    random.seed(42)
-    keys = list(color_map_default.keys())
-    values = list(color_map_default.values())
-    random.shuffle(values)
-    color_map_shuffled = dict(zip(keys, values))
+    with patch.object(pv.Plotter, 'add_mesh', recording_add_mesh):
+        yab.plot_subcortical(atlas='aseg', display_type='matplotlib',
+                             cmap=cmap, atlas_color_seed=atlas_color_seed)
+    return captured
 
-    any_changed = any(
-        tuple(color_map_default[name]) != tuple(color_map_shuffled[name])
-        for name in names
-    )
-    assert any_changed, "Shuffle produced no change in color assignments"
+
+def test_atlas_color_seed_changes_colormap_arrangement():
+    """With a colormap, different seeds produce different region color arrangements."""
+    a = _capture_region_colors(42, 'viridis')
+    b = _capture_region_colors(7, 'viridis')
+    assert a and b, "no region colors were captured"
+    assert a != b, "different atlas_color_seed values should reshuffle colormap colors"
 
 
 def test_subcortical_plot_regions_separately(tmp_path):
@@ -235,3 +239,19 @@ def test_plot_regions_separately_midline_no_collision(tmp_path):
     midline_files = sorted(f.name for f in out.glob("brainstem_*.png"))
     # rendered in both lateral views -> must be two distinct files, not one overwritten
     assert len(midline_files) == 2, f"midline region collided: {midline_files}"
+
+
+def test_plot_regions_separately_displays_without_export(tmp_path, monkeypatch):
+    """Without export_path, per-region mode displays and returns axes, writing no files."""
+    import matplotlib.axes
+    monkeypatch.chdir(tmp_path) 
+
+    result = yab.plot_subcortical(
+        atlas='aseg', display_type='matplotlib',
+        plot_regions_separately=True, views=['superior'],
+    )
+
+    assert isinstance(result, list) and len(result) > 0
+    assert all(isinstance(a, matplotlib.axes.Axes) for a in result)
+    assert list(tmp_path.glob("*.png")) == [], "no files should be written without export_path"
+    plt.close('all')

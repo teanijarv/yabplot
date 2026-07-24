@@ -1,6 +1,7 @@
 import os
 import gc
 import re
+import random
 import warnings
 import numpy as np
 import pandas as pd
@@ -127,7 +128,7 @@ def get_base_name(name):
     for suffix in ['_l', '_r', '-lh', '-rh']:
         if n.endswith(suffix):
             return name[:len(name)-len(suffix)]
-    for prefix in ['l-', 'r-']:
+    for prefix in ['l-', 'r-', 'l_', 'r_']:
         if n.startswith(prefix):
             return name[len(prefix):]
     for word in ['left_', 'right_', 'left-', 'right-']:
@@ -336,8 +337,8 @@ def plot_subcortical(data=None, atlas=None, custom_atlas_path=None, ax=None, cba
                      nan_alpha=1.0, style='default', bmesh='midthickness',
                      bmesh_alpha=0.15, bmesh_color='lightgray', zoom=1.2, display_type='matplotlib',
                      export_path=None, custom_atlas_proc=dict(smooth_i=15, smooth_f=0.6),
-                     shuffle_colors=False, plot_regions_separately=False,
-                     hemisphere_colors=False):
+                     atlas_color_seed=42, plot_regions_separately=False,
+                     shared_hemisphere_colors=False):
     """
     Visualize data on the subcortical structures using a specified atlas.
 
@@ -398,18 +399,23 @@ def plot_subcortical(data=None, atlas=None, custom_atlas_path=None, ax=None, cba
         Parameters for processing custom GIfTI files.
         Keys: 'smooth_i' (iterations) and 'smooth_f' (relaxation factor).
         Default is {'smooth_i': 15, 'smooth_f': 0.6}.
-    shuffle_colors : bool, optional
-        If True, shuffles the color assignments for categorical coloring to help
-        distinguish adjacent regions with similar colormap neighbors. Default is False.
+    atlas_color_seed : int, optional
+        Seed controlling the categorical color arrangement in atlas (no-data) mode.
+        With the default palette it seeds the distinct-color generator; with a
+        colormap it seeds a shuffle so gradient-adjacent regions get contrasting
+        colors. Change it to get a different, reproducible arrangement. Ignored when
+        `data` is given. Default is 42.
     plot_regions_separately : bool, optional
-        If True, saves a separate PNG file for each region + view combination instead
-        of a single combined figure. Each file is named ``{region}_{view_face}.png``
-        and uses a transparent background (useful for SVG tracing pipelines).
-        ``export_path`` is treated as an output directory. Default is False.
-    hemisphere_colors : bool, optional
-        If True, bilateral region pairs (e.g. ``putamen_l`` / ``putamen_r``) share the
-        same color in atlas (no-data) mode. If False (default), every region is assigned
-        its own independent color.
+        If True, renders each region + view combination on its own instead of a single
+        combined figure. If ``export_path`` is set, one transparent-background PNG per
+        region is saved there (named ``{region}_{view_face}.png``, useful for SVG
+        tracing pipelines) and None is returned; otherwise the per-region axes are
+        displayed and returned as a list. Default is False.
+    shared_hemisphere_colors : bool, optional
+        If True, bilateral region pairs (e.g. ``putamen_l`` / ``putamen_r``) are drawn
+        in the same color, so each structure reads as one color across both hemispheres.
+        Only applies in atlas (no-data) mode; ignored when `data` is given. If False
+        (default), every region is assigned its own independent color.
 
     Returns
     -------
@@ -453,31 +459,24 @@ def plot_subcortical(data=None, atlas=None, custom_atlas_path=None, ax=None, cba
         vmax = vminmax[1] if vminmax[1] is not None else (max(valid_vals) if valid_vals else 1)
         c_vlim = [vmin, vmax]
     else:
-        # Determine the key for each region: base name (hemisphere-shared) or the raw name
+        # determine the key for each region: base name (hemisphere-shared) or the raw name
         color_keys = (
             list(dict.fromkeys(get_base_name(n) for n in rmesh_names))
-            if hemisphere_colors
+            if shared_hemisphere_colors
             else list(dict.fromkeys(rmesh_names))
         )
 
-        # Generate one color per unique key
+        # generate one color per unique key
         if cmap is None:
-            key_colors = generate_distinct_colors(len(color_keys), seed=42)
+            key_colors = generate_distinct_colors(len(color_keys), seed=atlas_color_seed)
         else:
             # get_cmap accepts either a colormap name (str) or a Colormap object
             cmap_obj = get_cmap(cmap)
             key_colors = [tuple(c[:3]) for c in cmap_obj(np.linspace(0, 1, len(color_keys)))]
+            random.Random(atlas_color_seed).shuffle(key_colors)
         color_map = dict(zip(color_keys, key_colors))
 
-        if shuffle_colors:
-            import random
-            random.seed(42)
-            keys = list(color_map.keys())
-            values = list(color_map.values())
-            random.shuffle(values)
-            color_map = dict(zip(keys, values))
-
-        lookup = get_base_name if hemisphere_colors else (lambda n: n)
+        lookup = get_base_name if shared_hemisphere_colors else (lambda n: n)
         d_atlas_colors = {name: color_map[lookup(name)] for name in rmesh_names}
         c_vlim = [0, 1]
 
@@ -489,15 +488,18 @@ def plot_subcortical(data=None, atlas=None, custom_atlas_path=None, ax=None, cba
     shading_params = get_shading_preset(style)
 
     if plot_regions_separately:
-        # Determine output directory
-        if export_path is None:
-            out_dir = os.getcwd()
-        else:
+        # per-region output
+        do_export = export_path is not None
+        if do_export:
             _, _ext = os.path.splitext(export_path)
             out_dir = os.path.dirname(export_path) if _ext else export_path
             if not out_dir:
                 out_dir = os.getcwd()
-        os.makedirs(out_dir, exist_ok=True)
+            os.makedirs(out_dir, exist_ok=True)
+
+        # figsize can be None for non-matplotlib display types; fall back to default
+        region_window_size = list(figsize) if figsize is not None else [1000, 800]
+        region_axes = []
 
         for view_name, cfg in sel_views.items():
             print(f"Rendering view: {view_name}...")
@@ -514,7 +516,7 @@ def plot_subcortical(data=None, atlas=None, custom_atlas_path=None, ax=None, cba
                 else:
                     view_face = view_name
 
-                indiv_plotter = pv.Plotter(off_screen=True, window_size=list(figsize))
+                indiv_plotter = pv.Plotter(off_screen=True, window_size=region_window_size)
                 indiv_plotter.set_background('white')
                 add_context_to_view(indiv_plotter, ctx_meshes, cfg['side'], bmesh_alpha,
                                     bmesh_color, **shading_params)
@@ -545,12 +547,21 @@ def plot_subcortical(data=None, atlas=None, custom_atlas_path=None, ax=None, cba
                 set_camera(indiv_plotter, cfg, zoom=zoom)
                 indiv_plotter.hide_axes()
 
-                out_file = os.path.join(out_dir, f'{target_name}_{view_face}.png')
-                indiv_plotter.screenshot(out_file, transparent_background=True)
-                indiv_plotter.close()
-                print(f"  Saved → {out_file}")
+                if do_export:
+                    out_file = os.path.join(out_dir, f'{target_name}_{view_face}.png')
+                    indiv_plotter.screenshot(out_file, transparent_background=True)
+                    indiv_plotter.close()
+                    print(f"  Saved → {out_file}")
+                else:
+                    img = indiv_plotter.screenshot(transparent_background=True, return_img=True)
+                    indiv_plotter.close()
+                    _, region_ax = plt.subplots()
+                    region_ax.imshow(img)
+                    region_ax.set_title(f'{target_name} ({view_name})', fontsize=8)
+                    region_ax.axis('off')
+                    region_axes.append(region_ax)
 
-        return None
+        return None if do_export else region_axes
 
     # setup plotter (combined / normal path)
     needs_bottom = (data is not None)
