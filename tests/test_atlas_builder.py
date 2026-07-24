@@ -3,9 +3,30 @@ import pytest
 import numpy as np
 import nibabel as nib
 import pyvista as pv
-from yabplot.atlas_builder import build_subcortical_atlas
+from yabplot.atlas_builder import build_subcortical_atlas, _to_int_labels
 
 pv.OFF_SCREEN = True
+
+
+def test_to_int_labels_rounds_not_truncates():
+    """Label IDs stored as imprecise floats must round to the nearest integer.
+
+    Surface/volume label files often store integer region IDs as floats, so a
+    label of 3 can read back as 2.9999. A plain ``astype(int)`` truncates toward
+    zero (-> 2), silently misassigning vertices; ``_to_int_labels`` must round
+    (-> 3). This guards the cortical atlas builder against that regression.
+    """
+    # float32 round-trip of integer labels 1..3, plus a near-1 mask value
+    raw = np.array([1.0, 2.0, 3.0], dtype=np.float32) + np.float32(1e-7)
+    out = _to_int_labels(raw.astype(np.float64))
+    assert out.tolist() == [1, 2, 3], "imprecise float labels should round, not truncate"
+
+    # explicit truncation trap: 2.9999 -> 3 (round), not 2 (truncate)
+    assert _to_int_labels(np.array([2.9999, 0.9999])).tolist() == [3, 1]
+
+    # already-integer input is unchanged, and the result is flattened 1-D
+    two_d = np.array([[10, 11], [12, 13]])
+    assert _to_int_labels(two_d).tolist() == [10, 11, 12, 13]
 
 
 def _make_atlas_nifti(tmp_path, label_id, label_value, dtype=np.float64):
