@@ -199,3 +199,39 @@ def test_subcortical_plot_regions_separately(tmp_path):
     assert len(png_files) > 0, "No PNG files were written"
     for f in png_files:
         assert f.stat().st_size > 0, f"{f.name} is empty"
+
+
+def test_subcortical_cmap_object_atlas_mode():
+    """A Colormap object (not just a str) must work in atlas mode (data=None).
+
+    The docstring advertises cmap as 'str or matplotlib.colors.Colormap'; passing
+    an object previously left color_map undefined and raised NameError.
+    """
+    yab.plot_subcortical(atlas='aseg', display_type='matplotlib', cmap=plt.get_cmap('viridis'))
+
+
+def test_plot_regions_separately_midline_no_collision(tmp_path):
+    """Midline regions must not overwrite their own left/right views.
+
+    view_face strips 'left_'/'right_', so for a midline region (rendered in every
+    view) left_lateral and right_lateral would collapse to the same filename. The
+    fix keeps the full view name for regions without a hemisphere tag.
+    """
+    atlas_dir = tmp_path / "atlas"
+    atlas_dir.mkdir()
+    # one midline region (no L/R token) and one lateralized region
+    pv.Sphere(center=(0, 0, 0)).save(str(atlas_dir / "brainstem.vtk"))
+    pv.Sphere(center=(-20, 0, 0)).save(str(atlas_dir / "Left-Putamen.vtk"))
+
+    out = tmp_path / "out"
+    yab.plot_subcortical(
+        custom_atlas_path=str(atlas_dir),
+        display_type='matplotlib',
+        plot_regions_separately=True,
+        export_path=str(out),
+        views=['left_lateral', 'right_lateral'],
+    )
+
+    midline_files = sorted(f.name for f in out.glob("brainstem_*.png"))
+    # rendered in both lateral views -> must be two distinct files, not one overwritten
+    assert len(midline_files) == 2, f"midline region collided: {midline_files}"

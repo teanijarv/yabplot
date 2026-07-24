@@ -463,13 +463,11 @@ def plot_subcortical(data=None, atlas=None, custom_atlas_path=None, ax=None, cba
         # Generate one color per unique key
         if cmap is None:
             key_colors = generate_distinct_colors(len(color_keys), seed=42)
-            color_map = {k: color for k, color in zip(color_keys, key_colors)}
-        elif isinstance(cmap, str):
+        else:
+            # get_cmap accepts either a colormap name (str) or a Colormap object
             cmap_obj = get_cmap(cmap)
-            color_map = {
-                k: tuple(c[:3])
-                for k, c in zip(color_keys, cmap_obj(np.linspace(0, 1, len(color_keys))))
-            }
+            key_colors = [tuple(c[:3]) for c in cmap_obj(np.linspace(0, 1, len(color_keys)))]
+        color_map = dict(zip(color_keys, key_colors))
 
         if shuffle_colors:
             import random
@@ -502,30 +500,27 @@ def plot_subcortical(data=None, atlas=None, custom_atlas_path=None, ax=None, cba
         os.makedirs(out_dir, exist_ok=True)
 
         for view_name, cfg in sel_views.items():
-            view_face = view_name.replace('left_', '').replace('right_', '')
             print(f"Rendering view: {view_name}...")
 
             for target_name in list(meshes.keys()):
-                tokens = set(re.split(r'[^a-z0-9]+', target_name.lower()))
-                is_left = any(x in tokens for x in ['left', 'l', 'lh'])
-                is_right = any(x in tokens for x in ['right', 'r', 'rh'])
+                is_left, is_right = _get_side_tokens(target_name)
                 if cfg['side'] == 'L' and is_right and not is_left:
                     continue
                 if cfg['side'] == 'R' and is_left and not is_right:
                     continue
+
+                if is_left != is_right:
+                    view_face = view_name.replace('left_', '').replace('right_', '')
+                else:
+                    view_face = view_name
 
                 indiv_plotter = pv.Plotter(off_screen=True, window_size=list(figsize))
                 indiv_plotter.set_background('white')
                 add_context_to_view(indiv_plotter, ctx_meshes, cfg['side'], bmesh_alpha,
                                     bmesh_color, **shading_params)
 
-                # Add all side-appropriate meshes; hide every one except the target.
-                # All meshes are added so the camera position stays consistent across
-                # exports, but only the target is visible.
                 for name, mesh in meshes.items():
-                    n_tokens = set(re.split(r'[^a-z0-9]+', name.lower()))
-                    n_is_left = any(x in n_tokens for x in ['left', 'l', 'lh'])
-                    n_is_right = any(x in n_tokens for x in ['right', 'r', 'rh'])
+                    n_is_left, n_is_right = _get_side_tokens(name)
                     if cfg['side'] == 'L' and n_is_right and not n_is_left:
                         continue
                     if cfg['side'] == 'R' and n_is_left and not n_is_right:
