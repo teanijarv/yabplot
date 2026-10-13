@@ -1,0 +1,21 @@
+.md-grid {
+  max-width: 1300px;
+}
+
+.doc-heading code {
+  font-size: 0.7em !important; 
+  background-color: transparent !important;
+}
+
+.jp-InputPrompt, .jp-OutputPrompt,
+.input_prompt, .output_prompt {
+  display: none !important;
+}
+
+.jp-Cell-inputWrapper, .jp-Cell-outputWrapper {
+  display: block !important;
+}
+
+.jp-RenderedHTMLCommon {
+  padding-left: 0 !important;
+}
