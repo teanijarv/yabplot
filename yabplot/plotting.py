@@ -1604,7 +1604,11 @@ def plot_voxelwise(nii_path, threshold='95%', n_levels=20, ax=None, cbar_kwargs=
     style : str, optional
         Lighting preset ('default', 'matte', 'glossy', 'sculpted', 'flat').
     bmesh : str, dict, or pyvista.PolyData, optional
-        Background context brain mesh (e.g. 'midthickness', 'pial').
+        Background context brain mesh. Accepts the name of a built-in mesh
+        (e.g. 'midthickness', 'pial'; see `get_available_resources('bmesh')`),
+        a single PolyData, a dict with 'L'/'R' keys, or None to hide it.
+        The built-in meshes are in MNI152NLin6Asym space (see Notes).
+        Default is 'midthickness'.
     bmesh_alpha : float, optional
         Opacity of the context brain mesh. Default is 0.15.
     bmesh_color : str, optional
@@ -1627,6 +1631,18 @@ def plot_voxelwise(nii_path, threshold='95%', n_levels=20, ax=None, cbar_kwargs=
         - 'interactive': returns a trame browser viewer.
         - 'pyvista': returns a static jupyter widget.
         - 'object': returns the raw pyvista plotter object.
+
+    Notes
+    -----
+    The volume is placed using the affine stored in the NIfTI header. It is not
+    resampled or registered, so it can be in any space, but it only lines up with
+    the context brain if both are in the same space.
+
+    The built-in meshes are group-average cortical surfaces from the Human
+    Connectome Project (fs_LR 32k) in MNI152NLin6Asym space, without cerebellum
+    or brainstem. For data in another space (e.g. MNI152NLin2009cAsym from
+    fMRIPrep, or a subject's native space), build a matching context brain with
+    `load_nii_as_mesh`, for instance from a brain mask, and pass it as `bmesh`.
     """
 
     # load and validate data

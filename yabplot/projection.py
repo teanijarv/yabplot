@@ -35,6 +35,14 @@ def project_vol2surf(nii_path, bmesh='midthickness', mask_medial_wall=True, inte
         1D array of projected values for the left hemisphere vertices.
     rh_data : numpy.ndarray
         1D array of projected values for the right hemisphere vertices.
+
+    Notes
+    -----
+    The volume is sampled at the vertex coordinates of the mesh using the image
+    affine, without any registration, so the volume and the mesh must be in the
+    same space. The standard meshes are in MNI152NLin6Asym space (see
+    `yabplot.mesh.load_bmesh`). For a volume in another space, pass meshes in
+    that space as `bmesh`.
     """
     from .data import get_surface_paths
     from .mesh import load_bmesh, extract_polydata

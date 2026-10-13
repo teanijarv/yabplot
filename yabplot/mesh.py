@@ -25,6 +25,14 @@ def load_bmesh(bmesh):
     -------
     dict
         Standardized dictionary containing the loaded PyVista meshes.
+
+    Notes
+    -----
+    The standard meshes are group-average cortical surfaces from the Human
+    Connectome Project (fs_LR 32k, 32492 vertices per hemisphere). They are in
+    MNI152NLin6Asym space, the MNI152 template distributed with FSL, and cover
+    the cortex only (no cerebellum or brainstem). Custom meshes are used as they
+    are, in whatever space their coordinates are in.
     """
     from .data import get_surface_paths
     from .utils import load_gii2pv
