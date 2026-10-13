@@ -43,8 +43,8 @@ def test_plotter_instantiation():
     plotter.close()
 
 def test_plot_cortical():
-    """Smoke test: verify that plot_cortical renders with standard atlas."""
-    yab.plot_cortical(atlas='aparc', display_type='matplotlib')
+    """Smoke test: verify that plot_cortical renders with standard atlas and a named nan_color."""
+    yab.plot_cortical(atlas='aparc', nan_color='lightgray', display_type='matplotlib')
 
 def test_plot_cortical_contours():
     """Verify that contours are drawn for the selected regions and a wrong-sized mask is rejected."""

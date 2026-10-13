@@ -8,7 +8,7 @@ import pandas as pd
 import nibabel as nib
 import pyvista as pv
 import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap, to_rgba
+from matplotlib.colors import ListedColormap, to_rgba, to_rgba_array
 from matplotlib.pyplot import get_cmap
 from scipy.ndimage import gaussian_filter
 
@@ -145,8 +145,8 @@ def _render_cortical_views(lh_v, lh_f, lh_vals, rh_v, rh_f, rh_vals, is_cat,
     # setup colors and vminmax
     n_colors = 256
     if is_cat:
-        _lut_colors = lut_colors.copy()
-        _lut_colors[0] = nan_color
+        _lut_colors = to_rgba_array(lut_colors)
+        _lut_colors[0] = to_rgba(nan_color)
         cmap = ListedColormap(_lut_colors)
         n_colors = len(_lut_colors)
         vmin, vmax = 0, max_id
@@ -308,9 +308,9 @@ def plot_cortical(data=None, atlas=None, custom_atlas_path=None, ax=None, cbar_k
     contours : bool, dict, list, str, or numpy.ndarray, optional
         Draw boundary lines between atlas regions. Default ``False``. Four forms:
 
-        - ``True``: all regions, default style (black, 1.5 mm wide, opaque).
+        - ``True``: all regions, default style (black, 1 mm wide, opaque).
         - **style dict** (values are primitives): all regions, custom style.
-          Keys: ``color``, ``line_width`` (width in mm on the surface, default ``1.5``),
+          Keys: ``color``, ``line_width`` (width in mm on the surface, default ``1.0``),
           ``opacity``, ``include_nan``.
           ``include_nan=False`` suppresses borders between two NaN regions while
           keeping outlines around regions that have data. Default ``True``.
