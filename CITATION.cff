@@ -6,7 +6,7 @@ authors:
   orcid: "https://orcid.org/0000-0002-3650-4230"
 title: "yabplot: yet another brain plot for unified neuroimaging visualization in Python"
 doi: 10.5281/zenodo.18237144
-version: 0.5.1
+version: 0.6.0
 url: "https://github.com/teanijarv/yabplot"
 preferred-citation:
   type: software
