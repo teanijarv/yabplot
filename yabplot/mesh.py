@@ -338,6 +338,106 @@ def get_puzzle_pieces(v, f, raw_vals):
     return base_p, pieces
 
 
+def get_region_boundaries(vertices, faces, labels, values=None, include_nan=True,
+                           region_ids=None):
+    """Trace the borders between adjacent regions as a PyVista line mesh.
+
+    The borders are traced through the faces rather than along the mesh edges:
+    the labels are turned into smooth per-region fields (the same ones that
+    ``proc_vertices='sharp'`` colors the surface with) and a border is placed
+    where the fields of two neighboring regions are equal. This gives smooth
+    lines that sit on the color borders of the rendered surface.
+
+    Parameters
+    ----------
+    vertices : numpy.ndarray
+        (N, 3) float array of vertex coordinates.
+    faces : numpy.ndarray
+        (M, 3) int array of triangle face indices.
+    labels : numpy.ndarray
+        (N,) integer label array (one ID per vertex).
+    values : numpy.ndarray, optional
+        (N,) float array of mapped data values (may contain NaN). Only used
+        together with ``include_nan=False``.
+    include_nan : bool, optional
+        If False and ``values`` is provided, skip the borders between two
+        regions without data — i.e. draw outlines around regions that have
+        data (including their border with NaN regions) only. Default True.
+    region_ids : set or array-like of int, optional
+        If provided, only the borders of these label IDs are included. Draws
+        the full outline of each selected region (including its border with
+        unselected regions).
+
+    Returns
+    -------
+    pyvista.PolyData or None
+        Line mesh of the borders, or None if no borders exist.
+    """
+    n_v = len(vertices)
+    u_labs, inv = np.unique(labels, return_inverse=True)
+    if len(u_labs) < 2:
+        return None
+
+    # smooth per-region fields, the same ones 'sharp' takes its colors from
+    masks = np.zeros((n_v, len(u_labs)))
+    masks[np.arange(n_v), inv] = 1.0
+    masks = get_smooth_masks_vectorized(faces, n_v, masks, iterations=4)
+    region = np.argmax(masks, axis=1)
+
+    # unique mesh edges and, for each face, the ids of its three edges
+    edges = np.sort(np.concatenate([faces[:, [0, 1]], faces[:, [1, 2]], faces[:, [2, 0]]]), axis=1)
+    keys, face_edges = np.unique(edges[:, 0].astype(np.int64) * n_v + edges[:, 1], return_inverse=True)
+    face_edges = face_edges.reshape(3, -1).T
+    v0, v1 = keys // n_v, keys % n_v
+
+    # a border crosses every edge whose two ends lie in different regions,
+    # at the point where the fields of those two regions are equal
+    crossed = region[v0] != region[v1]
+    v0, v1 = v0[crossed], v1[crossed]
+    r0, r1 = region[v0], region[v1]
+    d0 = masks[v0, r0] - masks[v0, r1]
+    d1 = masks[v1, r1] - masks[v1, r0]
+    t = np.divide(d0, d0 + d1, out=np.full(len(d0), 0.5), where=(d0 + d1) > 0)
+    t = np.clip(t, 0.01, 0.99)  # stay off the vertices so no segment collapses
+    points = vertices[v0] + t[:, None] * (vertices[v1] - vertices[v0])
+    pairs = np.column_stack([u_labs[r0], u_labs[r1]])
+
+    point_id = np.full(len(keys), -1)
+    point_id[crossed] = np.arange(len(points))
+    face_points = point_id[face_edges]
+    n_crossed = (face_points >= 0).sum(axis=1)
+
+    # two crossed edges: the border runs straight through the face
+    two = np.sort(face_points[n_crossed == 2], axis=1)[:, 1:]
+    # three crossed edges: three regions meet inside the face
+    three = face_points[n_crossed == 3]
+    center_id = len(points) + np.arange(len(three))
+    points = np.vstack([points, points[three].mean(axis=1)])
+    segments = np.vstack([two] + [np.column_stack([three[:, k], center_id]) for k in range(3)])
+    seg_pairs = np.vstack([pairs[two[:, 0]]] + [pairs[three[:, k]] for k in range(3)])
+
+    # optionally restrict to the borders of the requested region IDs
+    keep = np.ones(len(segments), dtype=bool)
+    if region_ids is not None:
+        keep &= np.isin(seg_pairs, list(region_ids)).any(axis=1)
+
+    # optionally skip the borders between two regions without data
+    if not include_nan and values is not None:
+        has_data = np.unique(labels[~np.isnan(values)])
+        keep &= np.isin(seg_pairs, has_data).any(axis=1)
+
+    segments = segments[keep]
+    if len(segments) == 0:
+        return None
+
+    # drop the points that are not used anymore
+    used, segments = np.unique(segments, return_inverse=True)
+    segments = segments.reshape(-1, 2)
+    lines = np.column_stack([np.full(len(segments), 2), segments]).ravel()
+
+    return pv.PolyData(points[used], lines=lines)
+
+
 def lines_from_streamlines(streamlines):
     if len(streamlines) == 0: return np.array([]), np.array([]), np.array([])
     

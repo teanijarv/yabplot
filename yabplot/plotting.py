@@ -26,7 +26,7 @@ from .utils import (
 from .mesh import (
     map_values_to_surface, get_puzzle_pieces, apply_internal_blur,
     apply_dilation, get_smooth_mask, lines_from_streamlines,
-    make_cortical_mesh, load_bmesh, extract_polydata
+    make_cortical_mesh, load_bmesh, extract_polydata, get_region_boundaries
 )
 
 from .scene import (
@@ -35,11 +35,111 @@ from .scene import (
 )
 
 
+def _build_contour_layers(contours, lh_v, lh_f, rh_v, rh_f,
+                           tar_labels, lh_vals_raw, rh_vals_raw,
+                           lut_ids, lut_names, n_lh):
+    """Build a list of (lh_mesh, rh_mesh, kwargs) contour render layers.
+
+    ``contours`` accepts:
+    - ``True``: all regions, default style.
+    - style-dict (values are primitives): all regions, custom style.
+    - list / bool ndarray: those regions, default style.
+    - region-dict (all values are dicts): per-region style for listed regions only.
+
+    The lines are drawn as thin tubes (``line_width`` is their diameter in mm), so
+    they look the same in every display mode and figure size.
+    """
+    _BASE = {'color': 'black', 'line_width': 1.0, 'opacity': 1.0, 'include_nan': True,
+             'lighting': False}
+
+    # a single region name
+    if isinstance(contours, str):
+        contours = [contours]
+
+    # name → label-ID lookup (lut_names is a dense list indexed by label ID)
+    name_to_id = {name: lid for lid, name in enumerate(lut_names)
+                  if name and name != 'Unknown'}
+
+    def _pop_include_nan(d):
+        d = d.copy()
+        return d.pop('include_nan', _BASE['include_nan']), d
+
+    def _names_to_ids(names):
+        unknown = [str(n) for n in names if n not in name_to_id]
+        if unknown:
+            warnings.warn(f"contours: ignoring region names that are not in the atlas: {unknown}")
+        return {name_to_id[n] for n in names if n in name_to_id}
+
+    is_region_dict = (isinstance(contours, dict) and
+                      bool(contours) and
+                      all(isinstance(v, dict) for v in contours.values()))
+
+    if isinstance(contours, dict) and not is_region_dict and any(isinstance(v, dict) for v in contours.values()):
+        raise ValueError(
+            "contours dict must be either a style dict (e.g. {'color': 'white'}) or a dict "
+            "of region names mapped to style dicts, not a mix of both."
+        )
+
+    if contours is True:
+        inc_nan, pv_kw = _pop_include_nan(_BASE.copy())
+        groups = [(None, inc_nan, pv_kw)]
+
+    elif isinstance(contours, dict) and not is_region_dict:
+        inc_nan, pv_kw = _pop_include_nan({**_BASE, **contours})
+        groups = [(None, inc_nan, pv_kw)]
+
+    elif is_region_dict:
+        from collections import defaultdict
+        base_inc_nan, base_pv = _pop_include_nan(_BASE.copy())
+        kwargs_groups = defaultdict(list)
+        _names_to_ids(contours)  # warns about names that are not in the atlas
+        for rname, rkwargs in contours.items():
+            inc_nan, pv_kw = _pop_include_nan({**base_pv, 'include_nan': base_inc_nan, **rkwargs})
+            key = (tuple(sorted(pv_kw.items())), inc_nan)
+            rid = name_to_id.get(rname)
+            if rid is not None:
+                kwargs_groups[key].append(rid)
+        groups = [(set(ids), inc_nan, dict(kw)) for (kw, inc_nan), ids in kwargs_groups.items()]
+
+    else:
+        # list of names or boolean mask
+        inc_nan, pv_kw = _pop_include_nan(_BASE.copy())
+        cr = np.asarray(contours)
+        if cr.dtype == bool:
+            if len(cr) != len(lut_ids):
+                raise ValueError(
+                    f"Contours mask length mismatch! The atlas LUT defines {len(lut_ids)} regions, "
+                    f"but the mask has {len(cr)}."
+                )
+            region_ids = {int(i) for i in lut_ids[cr]}
+        else:
+            region_ids = _names_to_ids(cr)
+        groups = [(region_ids, inc_nan, pv_kw)]
+
+    layers = []
+    for region_ids_set, inc_nan, pv_kw in groups:
+        pv_kw = pv_kw.copy()
+        radius = pv_kw.pop('line_width') / 2
+        lh_c = get_region_boundaries(lh_v, lh_f, tar_labels[:n_lh],
+                                      values=lh_vals_raw, include_nan=inc_nan,
+                                      region_ids=region_ids_set)
+        rh_c = get_region_boundaries(rh_v, rh_f, tar_labels[n_lh:],
+                                      values=rh_vals_raw, include_nan=inc_nan,
+                                      region_ids=region_ids_set)
+        # thin tubes instead of pixel-wide lines, so the width scales with the brain
+        lh_c, rh_c = [c if c is None else c.strip().tube(radius=radius, n_sides=8)
+                      for c in (lh_c, rh_c)]
+        if lh_c is not None or rh_c is not None:
+            layers.append((lh_c, rh_c, pv_kw))
+    return layers
+
+
 def _render_cortical_views(lh_v, lh_f, lh_vals, rh_v, rh_f, rh_vals, is_cat,
                            ax, cbar_kwargs,
                            views, layout, figsize, cmap, vminmax, nan_color,
                            style, zoom, proc_vertices, display_type, export_path,
-                           lut_colors=None, max_id=None):
+                           lut_colors=None, max_id=None,
+                           contour_layers=None):
     """Internal helper to render cortical data."""
 
     # setup colors and vminmax
@@ -109,6 +209,15 @@ def _render_cortical_views(lh_v, lh_f, lh_vals, rh_v, rh_f, rh_vals, is_cat,
             )
             if scalar_bar_mapper is None: scalar_bar_mapper = actor.mapper
 
+        # draw region boundary contours if requested
+        if contour_layers:
+            for lh_c, rh_c, ckw in contour_layers:
+                for c_mesh, side_key in [(lh_c, 'L'), (rh_c, 'R')]:
+                    if c_mesh is None:
+                        continue
+                    if cfg['side'] in [side_key, 'both']:
+                        plotter.add_mesh(c_mesh, **ckw)
+
         set_camera(plotter, cfg, zoom=zoom)
         plotter.hide_axes()
 
@@ -142,7 +251,7 @@ def get_base_name(name):
 def plot_cortical(data=None, atlas=None, custom_atlas_path=None, ax=None, cbar_kwargs=None, views=None, layout=None,
                   bmesh='midthickness', figsize=None, cmap='coolwarm', vminmax=[None, None],
                   nan_color=(1.0, 1.0, 1.0), style='default', zoom=1.2, proc_vertices='sharp',
-                  display_type='matplotlib', export_path=None):
+                  display_type='matplotlib', export_path=None, contours=False):
     """
     Visualize data on the cortical surface using a specified atlas.
 
@@ -196,6 +305,20 @@ def plot_cortical(data=None, atlas=None, custom_atlas_path=None, ax=None, cbar_k
         'object': returns the raw pyvista plotter object.
     export_path : str, optional
         If provided, saves the final figure to this path (e.g., 'figure.png').
+    contours : bool, dict, list, str, or numpy.ndarray, optional
+        Draw boundary lines between atlas regions. Default ``False``. Four forms:
+
+        - ``True``: all regions, default style (black, 1.5 mm wide, opaque).
+        - **style dict** (values are primitives): all regions, custom style.
+          Keys: ``color``, ``line_width`` (width in mm on the surface, default ``1.5``),
+          ``opacity``, ``include_nan``.
+          ``include_nan=False`` suppresses borders between two NaN regions while
+          keeping outlines around regions that have data. Default ``True``.
+        - **list** of region name strings (or a single name) or **bool ndarray**
+          (one value per region, in the same order as array ``data``):
+          those regions only, default style.
+        - **region dict** (values are dicts): only the listed regions, each
+          style dict merged with the global defaults. Same keys as style dict.
 
     Returns
     -------
@@ -231,11 +354,22 @@ def plot_cortical(data=None, atlas=None, custom_atlas_path=None, ax=None, cbar_k
     lh_vals_raw = all_vals[:len(lh_v)]
     rh_vals_raw = all_vals[len(lh_v):]
 
+    # compute region boundary contours
+    contour_layers = None
+    if contours is not False and contours is not None:
+        n_lh = len(lh_v)
+        contour_layers = _build_contour_layers(
+            contours, lh_v, lh_f, rh_v, rh_f,
+            tar_labels, lh_vals_raw, rh_vals_raw,
+            lut_ids, lut_names, n_lh
+        )
+
     # render
     return _render_cortical_views(
         lh_v, lh_f, lh_vals_raw, rh_v, rh_f, rh_vals_raw, is_cat, ax, cbar_kwargs,
         views, layout, figsize, cmap, vminmax, nan_color, style,
-        zoom, proc_vertices, display_type, export_path, lut_colors, max_id
+        zoom, proc_vertices, display_type, export_path, lut_colors, max_id,
+        contour_layers
     )
 
 

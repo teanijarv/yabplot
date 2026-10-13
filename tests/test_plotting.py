@@ -46,6 +46,19 @@ def test_plot_cortical():
     """Smoke test: verify that plot_cortical renders with standard atlas."""
     yab.plot_cortical(atlas='aparc', display_type='matplotlib')
 
+def test_plot_cortical_contours():
+    """Verify that contours are drawn for the selected regions and a wrong-sized mask is rejected."""
+    regions = yab.get_atlas_regions('aparc', 'cortical')
+    kwargs = dict(atlas='aparc', views=['left_lateral'], display_type='object')
+    without = yab.plot_cortical(**kwargs)
+    with_contours = yab.plot_cortical(contours=regions[:2], **kwargs)
+    assert len(with_contours.renderers[0].actors) == len(without.renderers[0].actors) + 1
+    without.close()
+    with_contours.close()
+
+    with pytest.raises(ValueError, match="mask length"):
+        yab.plot_cortical(contours=np.array([True, False]), **kwargs)
+
 def test_plot_subcortical():
     """Smoke test: verify that plot_subcortical renders with standard atlas."""
     yab.plot_subcortical(atlas='aseg', display_type='matplotlib')
