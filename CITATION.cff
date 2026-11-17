@@ -1,21 +1,25 @@
 cff-version: 1.2.0
+type: software
 message: "If you use yabplot in your research, please cite it as below."
-authors:
-- family-names: "Anijärv"
-  given-names: "Toomas Erik"
-  orcid: "https://orcid.org/0000-0002-3650-4230"
 title: "yabplot: yet another brain plot for unified neuroimaging visualization in Python"
-doi: 10.5281/zenodo.18237144
-version: 0.6.0
+authors:
+  - family-names: "Anijärv"
+    given-names: "Toomas Erik"
+    orcid: "https://orcid.org/0000-0002-3650-4230"
+    affiliation: "Clinical Memory Research Unit, Department of Clinical Sciences Malmö, Faculty of Medicine, Lund University, Lund, Sweden"
+license: MIT
+doi: "10.5281/zenodo.18237144"
+version: "0.6.0"
 url: "https://github.com/teanijarv/yabplot"
 preferred-citation:
   type: software
   authors:
-  - family-names: "Anijärv"
-    given-names: "Toomas Erik"
-    orcid: "https://orcid.org/0000-0002-3650-4230"
+    - family-names: "Anijärv"
+      given-names: "Toomas Erik"
+      orcid: "https://orcid.org/0000-0002-3650-4230"
+      affiliation: "Clinical Memory Research Unit, Department of Clinical Sciences Malmö, Faculty of Medicine, Lund University, Lund, Sweden"
   title: "yabplot: yet another brain plot for unified neuroimaging visualization in Python"
   year: 2026
-  doi: 10.5281/zenodo.18237144
+  doi: "10.5281/zenodo.18237144"
   url: "https://github.com/teanijarv/yabplot"
   abstract: "An open-source Python package for 3D neuroimaging visualization."
