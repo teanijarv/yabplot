@@ -74,9 +74,10 @@ def prep_data(data, regions, atlas, category):
 
     #resolve any present tsf paths:
     if isinstance(data, dict):
-        for key, value in data.items():
-            if isinstance(value, str):
-                data[key] = read_tsf(value)
+        data = {
+            key: load_tsf(value) if isinstance(value, str) else value
+            for key, value in data.items()
+        }
 
     return data
 

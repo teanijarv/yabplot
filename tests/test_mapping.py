@@ -76,3 +76,52 @@ def test_map_values_to_surface():
     # mismatch length array
     with pytest.raises(ValueError):
         map_values_to_surface([1.0, 2.0], target_labels, lut_ids, dense_lut_names)
+
+
+def _write_tsf(path, values):
+    """Write a minimal MRtrix3 float32 little-endian .tsf file."""
+    header = b"mrtrix track scalars\ndatatype: Float32LE\nfile: . 64\nEND\n"
+    with open(path, "wb") as fh:
+        fh.write(header.ljust(64, b" "))
+        np.asarray(values, dtype="<f4").tofile(fh)
+
+
+def test_prep_data_loads_tsf_paths(tmp_path):
+    """Verify that .tsf file paths passed to prep_data are loaded via load_tsf."""
+    tsf_path = tmp_path / "tract_a.tsf"
+    _write_tsf(tsf_path, [0.1, 0.2, np.nan, 0.3, np.inf])
+
+    data_dict = {"A": str(tsf_path)}
+    result = prep_data(data_dict, ["A", "B"], "test_atlas", "tracts")
+    assert np.allclose(result["A"], [0.1, 0.2, 0.3])
+    assert data_dict["A"] == str(tsf_path)
+
+    result_list = prep_data([str(tsf_path)], ["A"], "test_atlas", "tracts")
+    assert np.allclose(result_list["A"], [0.1, 0.2, 0.3])
+
+
+def test_plot_tracts_with_tsf_file(tmp_path):
+    """Verify that plot_tracts accepts a .tsf file path in data."""
+    import nibabel as nib
+    import yabplot as yab
+
+    atlas_dir = tmp_path / "tracts_atlas"
+    atlas_dir.mkdir()
+    streamlines = [
+        np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0]], dtype=np.float32),
+        np.array([[0.0, 1.0, 0.0], [1.0, 1.0, 0.0]], dtype=np.float32),
+    ]
+    tractogram = nib.streamlines.Tractogram(streamlines, affine_to_rasmm=np.eye(4))
+    nib.streamlines.save(tractogram, str(atlas_dir / "tract_l.trk"))
+
+    tsf_path = tmp_path / "tract_l.tsf"
+    _write_tsf(tsf_path, [0.1, 0.2, 0.3, np.nan, 0.4, 0.5, np.inf])
+
+    plotter = yab.plot_tracts(
+        data={"tract_l": str(tsf_path)},
+        custom_atlas_path=str(atlas_dir),
+        bmesh=None,
+        views=["left_lateral"],
+        display_type="object",
+    )
+    plotter.close()
